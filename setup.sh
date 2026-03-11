@@ -320,9 +320,21 @@ if [ "${SETUP_PENPOT:-false}" = true ]; then
     
     # Modify docker-compose.yaml to use variable substitution for PENPOT_FLAGS
     # This allows .env file to override the default flags
-    if grep -q "^PENPOT_FLAGS: " docker-compose.yaml && ! grep -q "\${PENPOT_FLAGS" docker-compose.yaml; then
+    # Note: YAML has leading spaces, so we need to match them
+    if grep -q "PENPOT_FLAGS:" docker-compose.yaml && ! grep -q "\${PENPOT_FLAGS" docker-compose.yaml; then
         verbose "Updating PENPOT_FLAGS to use variable substitution"
-        sed -i 's/^PENPOT_FLAGS:.*/PENPOT_FLAGS: ${PENPOT_FLAGS:-disable-email-verification enable-smtp enable-prepl-server disable-secure-session-cookies}/' docker-compose.yaml
+        # Use awk for more reliable replacement that preserves indentation
+        awk '
+        /PENPOT_FLAGS:/ && !/\${PENPOT_FLAGS/ {
+            # Replace the line while preserving leading whitespace
+            match($0, /^[[:space:]]*/)
+            spaces = substr($0, 1, RLENGTH)
+            print spaces "PENPOT_FLAGS: ${PENPOT_FLAGS:-disable-email-verification enable-smtp enable-prepl-server disable-secure-session-cookies}"
+            next
+        }
+        { print }
+        ' docker-compose.yaml > docker-compose.yaml.tmp && mv docker-compose.yaml.tmp docker-compose.yaml
+        
         if grep -q "\${PENPOT_FLAGS" docker-compose.yaml; then
             info "Updated PENPOT_FLAGS in docker-compose.yaml to support .env override"
         fi
