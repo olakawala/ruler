@@ -258,10 +258,15 @@ if [ "${SETUP_PENPOT:-false}" = true ]; then
         fi
     fi
     
-    info "Starting Penpot stack (this may take a few minutes)..."
-    verbose "Running: docker compose -p penpot -f docker-compose.yaml up -d"
+    # Enable access tokens for self-hosted Penpot
+    # This allows creating API tokens for MCP authentication
+    export PENPOT_FLAGS="enable-access-tokens"
+    verbose "Setting PENPOT_FLAGS=$PENPOT_FLAGS"
     
-    docker compose -p penpot -f docker-compose.yaml up -d
+    info "Starting Penpot stack (this may take a few minutes)..."
+    verbose "Running: PENPOT_FLAGS=$PENPOT_FLAGS docker compose -p penpot -f docker-compose.yaml up -d"
+    
+    PENPOT_FLAGS=$PENPOT_FLAGS docker compose -p penpot -f docker-compose.yaml up -d
     
     info "Waiting for Penpot to be ready..."
     debug "Starting health check loop (max 60 attempts, 5s interval)"
