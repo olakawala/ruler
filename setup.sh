@@ -199,10 +199,10 @@ elif [ "$PENPOT_RUNNING" = true ]; then
         # Check if we need to restart (e.g., new flags)
         NEEDS_RESTART=false
         
-        # Check if PENPOT_FLAGS needs to be added
-        if ! grep -q "PENPOT_FLAGS" docker-compose.yaml 2>/dev/null; then
+        # Check if PENPOT_FLAGS needs to be added (check both .env and docker-compose.yaml)
+        if ! grep -q "PENPOT_FLAGS" .env 2>/dev/null && ! grep -q "PENPOT_FLAGS" docker-compose.yaml 2>/dev/null; then
             NEEDS_RESTART=true
-            verbose "PENPOT_FLAGS not found in docker-compose.yaml - needs restart"
+            verbose "PENPOT_FLAGS not found in .env or docker-compose.yaml - needs restart"
         fi
         
         if [ "$NEEDS_RESTART" = true ]; then
@@ -314,39 +314,28 @@ if [ "${SETUP_PENPOT:-false}" = true ]; then
     fi
     
     # Add PENPOT_FLAGS to enable access tokens in self-hosted Penpot
-    # This modifies the docker-compose.yaml to make it persistent
-    if ! grep -q "PENPOT_FLAGS" docker-compose.yaml; then
-        verbose "Adding PENPOT_FLAGS to docker-compose.yaml"
-        
-        # Use awk to insert PENPOT_FLAGS after penpot-backend service definition
-        awk '
-        /^  penpot-backend:/ { found=1 }
-        found && /environment:/ && !added {
-            print "      PENPOT_FLAGS: \"enable-access-tokens\""
-            added=1
-        }
-        { print }
-        ' docker-compose.yaml > docker-compose.yaml.tmp && mv docker-compose.yaml.tmp docker-compose.yaml
-        
-        if grep -q "PENPOT_FLAGS" docker-compose.yaml; then
-            info "Added PENPOT_FLAGS=enable-access-tokens to docker-compose.yaml"
-            verbose "PENPOT_FLAGS added to penpot-backend service"
+    # Use the existing .env file that Penpot already reads
+    if [ -f .env ]; then
+        if ! grep -q "PENPOT_FLAGS" .env; then
+            echo 'PENPOT_FLAGS=enable-access-tokens' >> .env
+            info "Added PENPOT_FLAGS=enable-access-tokens to .env"
         else
-            warn "Could not auto-add PENPOT_FLAGS. You may need to edit docker-compose.yaml manually."
-            debug "Manual fix: Add 'PENPOT_FLAGS: \"enable-access-tokens\"' to penpot-backend environment section"
+            debug "PENPOT_FLAGS already exists in .env"
         fi
     else
-        debug "PENPOT_FLAGS already exists in docker-compose.yaml"
+        # Create .env if it doesn't exist
+        echo 'PENPOT_FLAGS=enable-access-tokens' > .env
+        info "Created .env with PENPOT_FLAGS=enable-access-tokens"
     fi
     
-    # Enable access tokens for self-hosted Penpot (also pass at runtime as backup)
+    # Pass PENPOT_FLAGS at runtime as well (backup)
     export PENPOT_FLAGS="enable-access-tokens"
     verbose "Setting PENPOT_FLAGS=$PENPOT_FLAGS"
     
     info "Starting Penpot stack (this may take a few minutes)..."
-    verbose "Running: PENPOT_FLAGS=$PENPOT_FLAGS docker compose -p penpot -f docker-compose.yaml up -d"
+    verbose "Running: docker compose -p penpot -f docker-compose.yaml up -d"
     
-    PENPOT_FLAGS=$PENPOT_FLAGS docker compose -p penpot -f docker-compose.yaml up -d
+    docker compose -p penpot -f docker-compose.yaml up -d
     
     info "Waiting for Penpot to be ready..."
     debug "Starting health check loop (max 60 attempts, 5s interval)"
