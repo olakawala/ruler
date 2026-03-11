@@ -6,12 +6,48 @@ set -euo pipefail
 # AI-powered design tool for vibe coding
 # ═══════════════════════════════════════════════════════════
 
+# ── Parse flags ─────────────────────────────────────────────
+DEBUG=false
+VERBOSE=false
+SKIP_PENPOT=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --debug)
+            DEBUG=true
+            VERBOSE=true
+            ;;
+        --verbose|-v)
+            VERBOSE=true
+            ;;
+        --skip-penpot)
+            SKIP_PENPOT=true
+            ;;
+        --help|-h)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --debug         Show all debug output including container logs"
+            echo "  --verbose, -v   Show curl commands, docker output"
+            echo "  --skip-penpot   Skip Penpot setup (use existing Penpot)"
+            echo "  --help, -h      Show this help message"
+            exit 0
+            ;;
+    esac
+    shift
+done
+
+# ── Colors ──────────────────────────────────────────────────
+
 BOLD="\033[1m"
 GREEN="\033[0;32m"
 YELLOW="\033[0;33m"
 RED="\033[0;31m"
 CYAN="\033[0;36m"
+MAGENTA="\033[0;35m"
 RESET="\033[0m"
+
+# ── Logging functions ────────────────────────────────────────
 
 info()  { echo -e "${GREEN}[+]${RESET} $1"; }
 warn()  { echo -e "${YELLOW}[!]${RESET} $1"; }
@@ -19,12 +55,83 @@ err()   { echo -e "${RED}[x]${RESET} $1"; }
 header() { echo -e "\n${BOLD}── $1 ──${RESET}\n"; }
 prompt() { echo -e "${CYAN}[?]${RESET} $1"; }
 
+verbose() {
+    if [ "$VERBOSE" = true ]; then
+        echo -e "${MAGENTA}[v]${RESET} $1"
+    fi
+}
+
+debug() {
+    if [ "$DEBUG" = true ]; then
+        echo -e "${MAGENTA}[D]${RESET} $1"
+    fi
+}
+
+# ── Banner ──────────────────────────────────────────────────
+
 echo -e "${BOLD}"
 echo "╔════════════════════════════════════════════════════════╗"
 echo "║           Ruler — Setup                                ║"
-echo "║  Penpot + MCP Server for AI-powered design            ║"
+echo "║  Penpot + MCP Server for AI-powered design             ║"
 echo "╚════════════════════════════════════════════════════════╝"
 echo -e "${RESET}"
+
+if [ "$DEBUG" = true ]; then
+    echo -e "${MAGENTA}[DEBUG MODE ENABLED]${RESET}"
+fi
+if [ "$VERBOSE" = true ]; then
+    echo -e "${MAGENTA}[VERBOSE MODE ENABLED]${RESET}"
+fi
+echo ""
+
+# ── Helper: Check if Penpot is ready ─────────────────────────
+
+check_penpot_ready() {
+    local endpoints=(
+        "http://localhost:9001/"
+        "http://localhost:9001/health"
+    )
+    
+    for endpoint in "${endpoints[@]}"; do
+        debug "Checking endpoint: $endpoint"
+        local status
+        status=$(curl -sf -w "%{http_code}" -o /dev/null "$endpoint" 2>/dev/null) || status="000"
+        debug "  → HTTP $status"
+        
+        if [ "$status" = "200" ] || [ "$status" = "301" ] || [ "$status" = "302" ]; then
+            verbose "Penpot ready at: $endpoint (HTTP $status)"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# ── Helper: Show container status ───────────────────────────
+
+show_container_status() {
+    verbose "Container status:"
+    docker compose -p penpot ps 2>/dev/null | tail -n +2 | while read -r line; do
+        verbose "  $line"
+    done
+    
+    if [ "$DEBUG" = true ]; then
+        debug "Full container list:"
+        docker compose -p penpot ps 2>/dev/null | while read -r line; do
+            debug "  $line"
+        done
+    fi
+}
+
+# ── Helper: Show container logs ─────────────────────────────
+
+show_container_logs() {
+    local service=$1
+    debug "=== $service LOGS (last 30 lines) ==="
+    docker compose -p penpot logs --tail=30 "$service" 2>&1 | while read -r line; do
+        debug "$line"
+    done
+    debug "======================================"
+}
 
 # ── Check prerequisites ─────────────────────────────────────
 
@@ -35,89 +142,176 @@ if ! command -v docker &>/dev/null; then
     exit 1
 fi
 info "Docker found: $(docker --version | head -1)"
+debug "Docker version: $(docker --version)"
 
 if ! docker compose version &>/dev/null; then
     err "Docker Compose v2 is not installed."
     exit 1
 fi
 info "Docker Compose found: $(docker compose version | head -1)"
+debug "Docker Compose version: $(docker compose version)"
 
 # ── Check for existing Penpot ───────────────────────────────
 
 header "Detecting Penpot"
 
 PENPOT_RUNNING=false
-if docker ps --format '{{.Names}}' | grep -q 'penpot-backend'; then
-    info "Penpot backend is running"
+PENPOT_ALREADY_SETUP=false
+
+# Check if containers are running
+if docker ps --format '{{.Names}}' | grep -q 'penpot-frontend'; then
+    info "Penpot containers are running"
     PENPOT_RUNNING=true
+    debug "Found penpot-frontend in running containers"
 fi
 
-if docker ps --format '{{.Names}}' | grep -q 'penpot-postgres'; then
-    info "Penpot PostgreSQL is running"
+# Check if docker-compose.yaml exists (Penpot was set up before)
+if [ -f docker-compose.yaml ]; then
+    info "Found existing docker-compose.yaml"
+    PENPOT_ALREADY_SETUP=true
+    debug "Penpot was previously set up (docker-compose.yaml exists)"
 fi
 
-if [ "$PENPOT_RUNNING" = false ]; then
+# ── Penpot Setup Decision ───────────────────────────────────
+
+if [ "$SKIP_PENPOT" = true ]; then
+    info "Skipping Penpot setup (--skip-penpot flag)"
+elif [ "$PENPOT_RUNNING" = true ]; then
     echo ""
-    prompt "Penpot doesn't seem to be running."
+    prompt "Penpot is already running. Use existing or reinstall?"
     echo ""
-    echo "Options:"
-    echo "  [Y] Set up full Penpot stack now (recommended)"
-    echo "  [n] Skip Penpot setup (use existing Penpot URL)"
+    echo "  [U] Use existing Penpot (recommended)"
+    echo "  [R] Reinstall fresh"
+    echo "  [S] Skip Penpot setup entirely"
     echo ""
-    read -rp "Set up Penpot? [Y/n]: " setup_penpot
-    setup_penpot="${setup_penpot:-Y}"
+    read -rp "Choice [U/r/s]: " penpot_choice
+    penpot_choice="${penpot_choice:-U}"
     
-    if [[ "$setup_penpot" =~ ^[yY]$ || -z "$setup_penpot" ]]; then
-        header "Setting up Penpot"
-        
-        if [ -f docker-compose.yaml ]; then
-            warn "docker-compose.yaml already exists"
-            read -rp "Overwrite? (y/N): " overwrite_penpot
-            if [[ ! "$overwrite_penpot" =~ ^[yY]$ ]]; then
-                info "Using existing docker-compose.yaml"
-            else
-                rm docker-compose.yaml
-                info "Downloading Penpot docker-compose..."
-                wget -q https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml
-            fi
-        else
-            info "Downloading Penpot docker-compose..."
-            wget -q https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml
-        fi
-        
-        info "Starting Penpot stack (this may take a few minutes)..."
-        docker compose -p penpot -f docker-compose.yaml up -d
-        
-        info "Waiting for Penpot to be ready..."
-        max_attempts=60
-        attempt=0
-        while [ $attempt -lt $max_attempts ]; do
-            if curl -sf http://localhost:9001/api/health &>/dev/null; then
-                info "Penpot is ready at http://localhost:9001"
-                break
-            fi
-            attempt=$((attempt + 1))
-            echo -n "."
-            sleep 5
-        done
-        echo ""
-        
-        if [ $attempt -eq $max_attempts ]; then
-            warn "Penpot may still be starting. Check status with:"
-            echo "  docker compose -p penpot -f docker-compose.yaml ps"
-        fi
-        
-        # Extract database password from compose file if not set
-        if ! grep -q "PENPOT_DB_PASS=" .env 2>/dev/null || [ -z "${PENPOT_DB_PASS:-}" ]; then
-            if grep -q "POSTGRES_PASSWORD=" docker-compose.yaml; then
-                export PENPOT_DB_PASS=$(grep "POSTGRES_PASSWORD=" docker-compose.yaml | head -1 | cut -d'=' -f2 | tr -d '"' | tr -d "'")
-                info "Detected database password from Penpot compose"
-            fi
-        fi
+    if [[ "$penpot_choice" =~ ^[uU]$ ]]; then
+        info "Using existing Penpot"
+    elif [[ "$penpot_choice" =~ ^[rR]$ ]]; then
+        info "Reinstalling Penpot..."
+        docker compose -p penpot -f docker-compose.yaml down
+        rm docker-compose.yaml
+        PENPOT_ALREADY_SETUP=false
+        PENPOT_RUNNING=false
+    else
+        info "Skipping Penpot setup"
+        PENPOT_RUNNING=false
+        PENPOT_ALREADY_SETUP=false
+    fi
+fi
+
+# If Penpot not running and not already setup, ask to set up
+if [ "$PENPOT_RUNNING" = false ] && [ "$PENPOT_ALREADY_SETUP" = false ]; then
+    if [ "$SKIP_PENPOT" = true ]; then
+        warn "Penpot not found and --skip-penpot is set. MCP may not work."
     else
         echo ""
-        echo "Skipping Penpot setup. You'll need to provide your Penpot URL."
+        prompt "Penpot doesn't seem to be set up."
         echo ""
+        echo "Options:"
+        echo "  [Y] Set up full Penpot stack now (recommended)"
+        echo "  [n] Skip Penpot setup (use existing Penpot URL manually)"
+        echo ""
+        read -rp "Set up Penpot? [Y/n]: " setup_penpot
+        setup_penpot="${setup_penpot:-Y}"
+        
+        if [[ "$setup_penpot" =~ ^[yY]$ || -z "$setup_penpot" ]]; then
+            SETUP_PENPOT=true
+        else
+            SETUP_PENPOT=false
+        fi
+    fi
+fi
+
+# ── Setup Penpot ───────────────────────────────────────────
+
+if [ "${SETUP_PENPOT:-false}" = true ]; then
+    header "Setting up Penpot"
+    
+    # Remove any conflicting override files
+    if [ -f docker-compose.override.yml ]; then
+        rm docker-compose.override.yml
+        verbose "Removed old docker-compose.override.yml"
+    fi
+    
+    if [ -f docker-compose.yaml ]; then
+        warn "docker-compose.yaml already exists"
+        read -rp "Re-download Penpot compose? (y/N): " redownload
+        if [[ "$redownload" =~ ^[yY]$ ]]; then
+            rm docker-compose.yaml
+            info "Re-downloading Penpot docker-compose..."
+        else
+            info "Using existing docker-compose.yaml"
+        fi
+    fi
+    
+    if [ ! -f docker-compose.yaml ]; then
+        info "Downloading Penpot docker-compose..."
+        verbose "URL: https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml"
+        
+        if [ "$VERBOSE" = true ] || [ "$DEBUG" = true ]; then
+            wget https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml
+        else
+            wget -q https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml
+        fi
+    fi
+    
+    info "Starting Penpot stack (this may take a few minutes)..."
+    verbose "Running: docker compose -p penpot -f docker-compose.yaml up -d"
+    
+    docker compose -p penpot -f docker-compose.yaml up -d
+    
+    info "Waiting for Penpot to be ready..."
+    debug "Starting health check loop (max 60 attempts, 5s interval)"
+    
+    max_attempts=60
+    attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        if check_penpot_ready; then
+            info "Penpot is ready at http://localhost:9001"
+            break
+        fi
+        
+        attempt=$((attempt + 1))
+        printf "."
+        
+        # Show container status every 12 attempts (every 60 seconds)
+        if [ $((attempt % 12)) -eq 0 ] && [ $attempt -gt 0 ]; then
+            echo ""
+            verbose "Attempt $attempt/$max_attempts - checking containers..."
+            show_container_status
+        fi
+        
+        sleep 5
+    done
+    echo ""
+    
+    if [ $attempt -eq $max_attempts ]; then
+        err "Penpot failed to start within timeout."
+        
+        warn "Container logs:"
+        echo ""
+        
+        if [ "$DEBUG" = true ]; then
+            show_container_logs "penpot-backend"
+            show_container_logs "penpot-frontend"
+            show_container_logs "penpot-postgres"
+        else
+            echo "  Run with --debug to see container logs"
+        fi
+        
+        echo ""
+        warn "Check status manually: docker compose -p penpot -f docker-compose.yaml ps"
+    fi
+fi
+
+# Extract database password from compose file if not set
+if [ -f docker-compose.yaml ]; then
+    if grep -q "POSTGRES_PASSWORD=" docker-compose.yaml 2>/dev/null; then
+        DETECTED_DB_PASS=$(grep "POSTGRES_PASSWORD=" docker-compose.yaml | head -1 | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+        debug "Detected POSTGRES_PASSWORD from compose: $DETECTED_DB_PASS"
     fi
 fi
 
@@ -194,9 +388,9 @@ EOF
 
     # Database password
     echo ""
-    if [ -n "${PENPOT_DB_PASS:-}" ]; then
-        sed -i "s|PENPOT_DB_PASS=.*|PENPOT_DB_PASS=${PENPOT_DB_PASS}|" .env
-        info "Database password: ${PENPOT_DB_PASS}"
+    if [ -n "${DETECTED_DB_PASS:-}" ]; then
+        sed -i "s|PENPOT_DB_PASS=.*|PENPOT_DB_PASS=${DETECTED_DB_PASS}|" .env
+        info "Database password: ${DETECTED_DB_PASS} (detected from Penpot)"
     else
         echo "The database password is in your Penpot docker-compose.yml"
         echo "or .env file (look for POSTGRES_PASSWORD or PENPOT_DB_PASS)."
@@ -223,6 +417,12 @@ set +a
 # ── Create combined docker-compose ─────────────────────────
 
 header "Setting up Docker Compose"
+
+# Remove any conflicting override files first
+if [ -f docker-compose.override.yml ]; then
+    rm docker-compose.override.yml
+    verbose "Removed old docker-compose.override.yml"
+fi
 
 # Check if we have a penpot compose file
 if [ -f docker-compose.yaml ]; then
@@ -273,14 +473,30 @@ fi
 
 header "Building Ruler MCP Server"
 
-docker compose build penpot-mcp
+verbose "Running: docker compose build penpot-mcp"
+
+if [ "$VERBOSE" = true ] || [ "$DEBUG" = true ]; then
+    docker compose build penpot-mcp
+else
+    docker compose build penpot-mcp 2>&1 | while read -r line; do
+        verbose "$line"
+    done
+fi
 info "Docker image built successfully"
 
 # ── Start MCP Server ───────────────────────────────────────
 
 header "Starting Ruler MCP Server"
 
-docker compose up -d penpot-mcp
+verbose "Running: docker compose up -d penpot-mcp"
+
+if [ "$VERBOSE" = true ] || [ "$DEBUG" = true ]; then
+    docker compose up -d penpot-mcp
+else
+    docker compose up -d penpot-mcp 2>&1 | while read -r line; do
+        verbose "$line"
+    done
+fi
 info "Started MCP server"
 
 # ── Health check ───────────────────────────────────────────
@@ -292,13 +508,28 @@ sleep 5
 mcp_port=$(grep MCP_PORT .env 2>/dev/null | cut -d= -f2)
 mcp_port="${mcp_port:-8787}"
 
-if curl -sf "http://localhost:${mcp_port}/mcp" \
-    -H "Content-Type: application/json" \
-    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"setup","version":"1.0"}}}' \
-    > /dev/null 2>&1; then
-    info "MCP server is running on port ${mcp_port}"
+debug "Checking MCP server at http://localhost:${mcp_port}/mcp"
+
+if [ "$DEBUG" = true ]; then
+    echo "Sending initialize request to MCP server..."
+    echo "Request:"
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"setup","version":"1.0"}}}'
+    echo ""
+    echo "Response:"
+    curl -sf "http://localhost:${mcp_port}/mcp" \
+        -H "Content-Type: application/json" \
+        -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"setup","version":"1.0"}}}'
+    echo ""
 else
-    warn "Server may still be starting. Check logs with: docker logs penpot-mcp"
+    if curl -sf "http://localhost:${mcp_port}/mcp" \
+        -H "Content-Type: application/json" \
+        -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"setup","version":"1.0"}}}' \
+        > /dev/null 2>&1; then
+        info "MCP server is running on port ${mcp_port}"
+    else
+        warn "Server may still be starting. Check logs with: docker logs penpot-mcp"
+        debug "Run: curl -v http://localhost:${mcp_port}/mcp"
+    fi
 fi
 
 # ── Done ────────────────────────────────────────────────────
@@ -324,7 +555,6 @@ echo '      }'
 echo '    }'
 echo '  }'
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ "Done!"
-"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-info
+info "Done!"
