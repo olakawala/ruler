@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     # Penpot connection
     penpot_base_url: str = "http://penpot-frontend:8080"
     penpot_public_url: str = "http://localhost:9001"
+    penpot_backend_url: str = (
+        ""  # Optional: direct backend URL if frontend proxy has issues
+    )
 
     # Auth - access token (preferred)
     penpot_access_token: str = ""
@@ -48,6 +51,11 @@ class Settings(BaseSettings):
     @property
     def has_credentials(self) -> bool:
         return bool(self.penpot_email and self.penpot_password)
+
+    @property
+    def api_url(self) -> str:
+        """Effective URL for API calls - backend URL if set, otherwise base URL."""
+        return self.penpot_backend_url or self.penpot_base_url
 
 
 settings = Settings()

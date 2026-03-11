@@ -1,4 +1,8 @@
-"""Direct database query tool for advanced Penpot exploration."""
+"""Direct database query tool for advanced Penpot exploration.
+
+Note: Penpot uses singular table names (e.g., 'file' not 'files',
+'project' not 'projects', 'team' not 'teams').
+"""
 
 from __future__ import annotations
 
@@ -10,6 +14,8 @@ async def query_database(sql: str) -> list[dict]:
 
     This is a power tool for advanced queries not covered by other tools.
     Only SELECT statements are allowed.
+
+    Note: Penpot uses singular table names (e.g., 'file' not 'files').
 
     Args:
         sql: SQL SELECT query to execute.
@@ -23,6 +29,16 @@ async def query_database(sql: str) -> list[dict]:
     for word in forbidden:
         if f" {word} " in f" {normalized} " or normalized.startswith(word):
             return [{"error": f"Forbidden SQL keyword: {word}"}]
+
+    # Check for common mistake: 'files' instead of 'file'
+    if " from files " in f" {normalized} " or normalized.startswith(
+        "select * from files"
+    ):
+        return [
+            {
+                "error": "Table 'files' does not exist. Penpot uses singular names. Try 'file' instead."
+            }
+        ]
 
     rows = await db.fetch(sql)
     # Convert non-serializable types

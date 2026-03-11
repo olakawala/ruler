@@ -22,8 +22,10 @@ class PenpotAPI:
         self._session_token: str | None = None
 
     async def connect(self) -> None:
+        # Use backend URL directly if configured, otherwise use frontend
+        base_url = settings.penpot_backend_url or settings.penpot_base_url
         self._client = httpx.AsyncClient(
-            base_url=settings.penpot_base_url,
+            base_url=base_url,
             timeout=30.0,
             follow_redirects=True,
         )

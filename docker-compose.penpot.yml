@@ -35,6 +35,7 @@ services:
       - penpot
     environment:
       PENPOT_BASE_URL: "http://penpot-frontend:8080"
+      PENPOT_BACKEND_URL: "http://penpot-backend:6060"
       PENPOT_PUBLIC_URL: "${PENPOT_PUBLIC_URI:-http://localhost:9001}"
       PENPOT_ACCESS_TOKEN: "${PENPOT_ACCESS_TOKEN:-}"
       PENPOT_EMAIL: "${PENPOT_EMAIL:-}"

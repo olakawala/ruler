@@ -236,7 +236,7 @@ class PenpotDB:
                    sl.created_at, pr.fullname as owner
             FROM share_link sl
             JOIN profile pr ON pr.id = sl.owner_id
-            WHERE sl.file_id = $1 AND sl.deleted_at IS NULL
+            WHERE sl.file_id = $1
             """,
             file_id,
         )
