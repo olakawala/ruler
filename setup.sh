@@ -679,24 +679,24 @@ else
     debug "Check build output above"
 fi
 
-# ── Start MCP Server ───────────────────────────────────────
+# ── Start All Services (Penpot + MCP) ───────────────────────
 
-header "Starting Ruler MCP Server"
+header "Starting Penpot + MCP Server"
 
-verbose "Running: docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d penpot-mcp"
+verbose "Running: docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d"
 
 if [ "$VERBOSE" = true ] || [ "$DEBUG" = true ]; then
-    docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d penpot-mcp
+    docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d
 else
-    docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d penpot-mcp 2>&1 | while read -r line; do
+    docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d 2>&1 | while read -r line; do
         verbose "$line"
     done
 fi
 
 if [ $? -eq 0 ]; then
-    info "Started MCP server"
+    info "Started all services (Penpot + MCP)"
 else
-    err "Failed to start MCP server"
+    err "Failed to start services"
     debug "Check: docker compose -p penpot ps"
 fi
 
@@ -706,6 +706,14 @@ header "Health check"
 
 sleep 5
 
+# Check Penpot frontend
+if curl -sf -o /dev/null -w "%{http_code}" http://localhost:9001/ 2>/dev/null | grep -qE "^(200|301|302)"; then
+    info "Penpot is running at http://localhost:9001"
+else
+    warn "Penpot frontend may not be ready on port 9001"
+fi
+
+# Check MCP server
 mcp_port=$(grep MCP_PORT .env 2>/dev/null | cut -d= -f2)
 mcp_port="${mcp_port:-8787}"
 
@@ -728,7 +736,7 @@ else
         > /dev/null 2>&1; then
         info "MCP server is running on port ${mcp_port}"
     else
-        warn "Server may still be starting. Check logs with: docker logs penpot-mcp"
+        warn "MCP server may still be starting. Check logs with: docker logs penpot-mcp"
         debug "Run: curl -v http://localhost:${mcp_port}/mcp"
     fi
 fi
