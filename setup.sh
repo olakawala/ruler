@@ -344,14 +344,14 @@ if [ "${SETUP_PENPOT:-false}" = true ]; then
     # Use the existing .env file that Penpot already reads
     if [ -f .env ]; then
         if ! grep -q "PENPOT_FLAGS" .env; then
-            echo 'PENPOT_FLAGS=enable-access-tokens enable-login-with-password enable-registration disable-email-verification' >> .env
+            echo 'PENPOT_FLAGS=enable-access-tokens enable-login-with-password enable-registration enable-smtp disable-email-verification' >> .env
             info "Added PENPOT_FLAGS to .env"
         else
             debug "PENPOT_FLAGS already exists in .env"
         fi
     else
         # Create .env if it doesn't exist
-        echo 'PENPOT_FLAGS=enable-access-tokens enable-login-with-password enable-registration disable-email-verification' > .env
+        echo 'PENPOT_FLAGS=enable-access-tokens enable-login-with-password enable-registration enable-smtp disable-email-verification' > .env
         info "Created .env with PENPOT_FLAGS"
     fi
     
@@ -381,7 +381,7 @@ if [ "${SETUP_PENPOT:-false}" = true ]; then
         info "Penpot restarted with new configuration"
     else
         # Pass PENPOT_FLAGS at runtime as backup
-        export PENPOT_FLAGS="enable-access-tokens enable-login-with-password enable-registration disable-email-verification"
+        export PENPOT_FLAGS="enable-access-tokens enable-login-with-password enable-registration enable-smtp disable-email-verification"
         verbose "Setting PENPOT_FLAGS=$PENPOT_FLAGS"
         
         info "Starting Penpot stack (this may take a few minutes)..."
@@ -477,7 +477,7 @@ if [ "$SKIP_CONFIG" = false ]; then
         info "Created .env from .env_example"
         
         # Auto-enable access tokens for convenience
-        echo 'PENPOT_FLAGS=enable-access-tokens enable-login-with-password enable-registration disable-email-verification' >> .env
+        echo 'PENPOT_FLAGS=enable-access-tokens enable-login-with-password enable-registration enable-smtp disable-email-verification' >> .env
         info "Enabled PENPOT_FLAGS"
     else
         cat > .env << 'EOF'
@@ -487,7 +487,10 @@ PENPOT_EMAIL=
 PENPOT_PASSWORD=
 PENPOT_DB_PASS=penpot
 MCP_PORT=8787
-PENPOT_FLAGS=enable-access-tokens enable-login-with-password enable-registration disable-email-verification
+PENPOT_SMTP_HOST=mailcatcher
+PENPOT_SMTP_PORT=1025
+PENPOT_SMTP_DEFAULT_FROM=noreply@penpot.local
+PENPOT_FLAGS=enable-access-tokens enable-login-with-password enable-registration enable-smtp disable-email-verification
 EOF
         info "Created .env with defaults"
     fi
