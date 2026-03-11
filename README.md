@@ -127,18 +127,25 @@ Additional AI-powered tools:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/ruler.git
-cd ruler/ruler-mcp
+git clone https://github.com/olakawala/ruler.git
+cd ruler
 
-# Install dependencies
+# Install dependencies (for local development)
 pip install -e .
 
 # Configure environment
-cp .env.example .env
+cp .env_example .env
 # Edit .env with your Penpot credentials
 
-# Run the MCP server
-python -m src.server
+# Run the MCP server locally (optional - can also use Docker)
+python -m penpot_mcp.server
+```
+
+### With Docker
+
+```bash
+# Use the provided setup script
+./setup.sh
 ```
 
 ### With Docker
@@ -175,48 +182,108 @@ python -m src.server
 2. Create an access token in Penpot profile settings
 3. Add token to your `.env` file
 
+### OpenCode Config Location
+
+OpenCode looks for `opencode.json` in these locations (in order of precedence):
+
+1. **Current directory** (project root) - `./opencode.json`
+2. **Parent directories** (up to root) - `../opencode.json`
+3. **Global config** - `~/.config/opencode/opencode.json`
+
+For this project, copy `opencode.example.json` to `opencode.json` in the project root:
+
+```bash
+cp opencode.example.json opencode.json
+```
+
+Then edit the URL to match your setup (localhost or cloud IP).
+
 ---
 
 ### OpenCode Integration
 
-Once Ruler MCP is running, connect it to OpenCode:
+Once Ruler MCP is running, connect it to OpenCode.
 
-#### 1. Get Your MCP Server URL
+#### 1. Create OpenCode Config
 
-- **Local:** `http://localhost:8787/mcp`
-- **Cloud instance:** `http://<your-cloud-ip>:8787/mcp`
+OpenCode uses `opencode.json` for configuration. Create or edit this file:
 
-#### 2. Add to OpenCode
-
+**Option A: Project-level (recommended for this project)**
 ```bash
-# Using OpenCode CLI
-opencode mcp add ruler http://localhost:8787/mcp
+# In the ruler project directory
+touch opencode.json
 ```
 
-Or manually add to your `.mcp.json`:
+**Option B: Global (for all projects)**
+```bash
+mkdir -p ~/.config/opencode
+touch ~/.config/opencode/opencode.json
+```
+
+#### 2. Add MCP Server Configuration
+
+Add the following to your `opencode.json`:
 
 ```json
 {
-  "mcpServers": {
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
     "ruler": {
-      "type": "http",
-      "url": "http://localhost:8787/mcp"
+      "type": "remote",
+      "url": "http://<your-ip>:8787/mcp",
+      "enabled": true,
+      "timeout": 30000
     }
   }
 }
 ```
 
-#### 3. Verify Connection
+- **Local:** `http://localhost:8787/mcp`
+- **Cloud instance:** `http://<your-cloud-ip>:8787/mcp`
+- **timeout:** Increase to 30000ms (30s) for slower connections
+
+#### 3. Restart OpenCode
 
 ```bash
-# Restart OpenCode
+# Restart OpenCode to load the MCP server
 opencode
+```
 
-# Check MCP tools are loaded
+#### 4. Verify Connection
+
+```bash
+# List MCP servers
+opencode mcp list
+
+# Check available tools - you should see 68+ Penpot tools!
 /mcp
 ```
 
-You should see 68+ Penpot tools available!
+#### Using with Environment Variables
+
+If you want to pass credentials through OpenCode config:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "ruler": {
+      "type": "remote",
+      "url": "http://localhost:8787/mcp",
+      "enabled": true,
+      "headers": {
+        "X-Penpot-Token": "{env:PENPOT_ACCESS_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+Then set the environment variable:
+```bash
+export PENPOT_ACCESS_TOKEN=your-token-here
+opencode
+```
 
 #### Troubleshooting
 
@@ -225,6 +292,7 @@ You should see 68+ Penpot tools available!
 | MCP not found | Check MCP server is running: `docker ps \| grep penpot-mcp` |
 | Connection refused | Ensure port 8787 is open in firewall |
 | Tools not loading | Check logs: `docker logs penpot-mcp` |
+| Timeout errors | Increase `timeout` in opencode.json (e.g., 60000) |
 
 ---
 
@@ -300,9 +368,11 @@ Agent: calls ruler_load_skill("create button")
 
 ## AI Agent Integration
 
-### Claude Code
+### Claude Code (Cline)
 
-**File:** `~/.claude.json` or `.mcp.json`
+Claude Code uses a different MCP configuration format (`.mcp.json`):
+
+**File:** `~/.claude.json` or `.mcp.json` in project root
 
 ```json
 {
@@ -314,6 +384,8 @@ Agent: calls ruler_load_skill("create button")
   }
 }
 ```
+
+**Note:** This format is for Claude Code / Cline. For OpenCode, use `opencode.json` as shown above.
 
 ### Gemini CLI
 
@@ -347,6 +419,30 @@ Agent: calls ruler_load_skill("create button")
 
 ### Project Structure
 
+```
+ruler/
+├── src/
+│   └── penpot_mcp/             # MCP server implementation
+│       ├── __init__.py
+│       ├── server.py           # MCP server entry point
+│       ├── config.py           # Configuration
+│       ├── services/           # API clients
+│       ├── tools/              # Tool implementations
+│       └── transformers/       # Data transformers
+│
+├── ruler-skills/               # Skill library for AI agents
+│   ├── design-basics/
+│   ├── components/
+│   ├── pages/
+│   ├── workflow/
+│   └── best-practices/
+│
+├── docker-compose.override.yaml # MCP service override
+├── Dockerfile                   # MCP server Docker image
+├── setup.sh                     # Setup script
+├── .env_example                 # Environment template
+├── opencode.json                # OpenCode config (create from template)
+└── pyproject.toml              # Python package config
 ```
 ruler-mcp/
 ├── src/

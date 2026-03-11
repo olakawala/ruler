@@ -752,24 +752,43 @@ fi
 header "Setup complete"
 
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "  Ruler is ready!"
 echo ""
 echo "  • Penpot:      http://localhost:9001"
 echo "  • MCP Server:  http://localhost:${mcp_port}/mcp"
 echo ""
-echo "  To connect Claude Code, add this to your .mcp.json:"
+echo "  ┌─────────────────────────────────────────────────────────────┐"
+echo "  │ OpenCode Configuration                                      │"
+echo "  ├─────────────────────────────────────────────────────────────┤"
+echo "  │ Create opencode.json with:                                 │"
+echo "  │                                                             │"
+echo '  │ {                                                           │'
+echo '  │   "$schema": "https://opencode.ai/config.json",            │'
+echo '  │   "mcp": {                                                 │'
+echo '  │     "ruler": {                                             │'
+echo '  │       "type": "remote",                                     │'
+echo "  |       \"url\": \"http://localhost:${mcp_port}/mcp\",           │"
+echo '  │       "enabled": true                                      │'
+echo '  │     }                                                       │'
+echo '  │   }                                                         │'
+echo '  │ }                                                           │'
+echo "  └─────────────────────────────────────────────────────────────┘"
 echo ""
-echo '  {'
-echo '    "mcpServers": {'
-echo '      "ruler": {'
-echo '        "type": "http",'
-echo "        \"url\": \"http://localhost:${mcp_port}/mcp\""
-echo '      }'
-echo '    }'
-echo '  }'
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  ┌─────────────────────────────────────────────────────────────┐"
+echo "  │ Claude Code Configuration (alternative)                     │"
+echo "  ├─────────────────────────────────────────────────────────────┤"
+echo "  │ Add to .mcp.json:                                          │"
+echo "  │                                                             │"
+echo '  │ {                                                           │'
+echo '  │   "mcpServers": {                                          │'
+echo '  │     "ruler": {                                             │'
+echo '  │       "type": "http",                                       │'
+echo "  |       \"url\": \"http://localhost:${mcp_port}/mcp\"           │"
+echo '  │     }                                                       │'
+echo '  │   }                                                         │'
+echo '  │ }                                                           │'
+echo "  └─────────────────────────────────────────────────────────────┘"
 echo ""
 info "Done!"
