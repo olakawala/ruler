@@ -633,7 +633,7 @@ services:
       penpot-backend:
         condition: service_started
     networks:
-      - penpot_penpot
+      - penpot
     environment:
       PENPOT_BASE_URL: "http://penpot-frontend:8080"
       PENPOT_PUBLIC_URL: "${PENPOT_PUBLIC_URL:-http://localhost:9001}"
@@ -662,31 +662,43 @@ fi
 
 header "Building Ruler MCP Server"
 
-verbose "Running: docker compose build penpot-mcp"
+verbose "Running: docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml build penpot-mcp"
 
 if [ "$VERBOSE" = true ] || [ "$DEBUG" = true ]; then
-    docker compose build penpot-mcp
+    docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml build penpot-mcp
 else
-    docker compose build penpot-mcp 2>&1 | while read -r line; do
+    docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml build penpot-mcp 2>&1 | while read -r line; do
         verbose "$line"
     done
 fi
-info "Docker image built successfully"
+
+if [ $? -eq 0 ]; then
+    info "Docker image built successfully"
+else
+    err "Failed to build MCP server"
+    debug "Check build output above"
+fi
 
 # ── Start MCP Server ───────────────────────────────────────
 
 header "Starting Ruler MCP Server"
 
-verbose "Running: docker compose up -d penpot-mcp"
+verbose "Running: docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d penpot-mcp"
 
 if [ "$VERBOSE" = true ] || [ "$DEBUG" = true ]; then
-    docker compose up -d penpot-mcp
+    docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d penpot-mcp
 else
-    docker compose up -d penpot-mcp 2>&1 | while read -r line; do
+    docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d penpot-mcp 2>&1 | while read -r line; do
         verbose "$line"
     done
 fi
-info "Started MCP server"
+
+if [ $? -eq 0 ]; then
+    info "Started MCP server"
+else
+    err "Failed to start MCP server"
+    debug "Check: docker compose -p penpot ps"
+fi
 
 # ── Health check ───────────────────────────────────────────
 

@@ -177,6 +177,57 @@ python -m src.server
 
 ---
 
+### OpenCode Integration
+
+Once Ruler MCP is running, connect it to OpenCode:
+
+#### 1. Get Your MCP Server URL
+
+- **Local:** `http://localhost:8787/mcp`
+- **Cloud instance:** `http://<your-cloud-ip>:8787/mcp`
+
+#### 2. Add to OpenCode
+
+```bash
+# Using OpenCode CLI
+opencode mcp add ruler http://localhost:8787/mcp
+```
+
+Or manually add to your `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "ruler": {
+      "type": "http",
+      "url": "http://localhost:8787/mcp"
+    }
+  }
+}
+```
+
+#### 3. Verify Connection
+
+```bash
+# Restart OpenCode
+opencode
+
+# Check MCP tools are loaded
+/mcp
+```
+
+You should see 68+ Penpot tools available!
+
+#### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| MCP not found | Check MCP server is running: `docker ps \| grep penpot-mcp` |
+| Connection refused | Ensure port 8787 is open in firewall |
+| Tools not loading | Check logs: `docker logs penpot-mcp` |
+
+---
+
 ## MCP Tools
 
 ### Base Tools (68 tools from Penpot MCP)
