@@ -199,10 +199,15 @@ elif [ "$PENPOT_RUNNING" = true ]; then
         # Check if we need to restart (e.g., new flags)
         NEEDS_RESTART=false
         
-        # Check if PENPOT_FLAGS needs to be added (check both .env and docker-compose.yaml)
-        if ! grep -q "PENPOT_FLAGS" .env 2>/dev/null && ! grep -q "PENPOT_FLAGS" docker-compose.yaml 2>/dev/null; then
+        # Check if PENPOT_FLAGS needs to be added/modified
+        # 1. Check if .env has PENPOT_FLAGS
+        # 2. Check if docker-compose.yaml uses variable substitution
+        if ! grep -q "PENPOT_FLAGS" .env 2>/dev/null; then
             NEEDS_RESTART=true
-            verbose "PENPOT_FLAGS not found in .env or docker-compose.yaml - needs restart"
+            verbose "PENPOT_FLAGS not found in .env - needs restart"
+        elif ! grep -q "\${PENPOT_FLAGS" docker-compose.yaml 2>/dev/null; then
+            NEEDS_RESTART=true
+            verbose "docker-compose.yaml doesn't use variable substitution for PENPOT_FLAGS - needs update"
         fi
         
         if [ "$NEEDS_RESTART" = true ]; then
@@ -311,6 +316,16 @@ if [ "${SETUP_PENPOT:-false}" = true ]; then
             wget -q https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml
         fi
         info "Using existing docker-compose.yaml"
+    fi
+    
+    # Modify docker-compose.yaml to use variable substitution for PENPOT_FLAGS
+    # This allows .env file to override the default flags
+    if grep -q "^PENPOT_FLAGS: " docker-compose.yaml && ! grep -q "\${PENPOT_FLAGS" docker-compose.yaml; then
+        verbose "Updating PENPOT_FLAGS to use variable substitution"
+        sed -i 's/^PENPOT_FLAGS:.*/PENPOT_FLAGS: ${PENPOT_FLAGS:-disable-email-verification enable-smtp enable-prepl-server disable-secure-session-cookies}/' docker-compose.yaml
+        if grep -q "\${PENPOT_FLAGS" docker-compose.yaml; then
+            info "Updated PENPOT_FLAGS in docker-compose.yaml to support .env override"
+        fi
     fi
     
     # Add PENPOT_FLAGS to enable access tokens in self-hosted Penpot
