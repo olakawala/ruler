@@ -451,10 +451,8 @@ if [ "$SKIP_CONFIG" = false ]; then
         info "Created .env from .env_example"
         
         # Auto-enable access tokens for convenience
-        if ! grep -q "PENPOT_FLAGS=enable-access-tokens" .env; then
-            sed -i 's/^PENPOT_FLAGS=$/PENPOT_FLAGS=enable-access-tokens/' .env
-            info "Enabled PENPOT_FLAGS=enable-access-tokens"
-        fi
+        echo 'PENPOT_FLAGS=enable-access-tokens' >> .env
+        info "Enabled PENPOT_FLAGS=enable-access-tokens"
     else
         cat > .env << 'EOF'
 PENPOT_PUBLIC_URL=http://localhost:9001
