@@ -344,15 +344,15 @@ if [ "${SETUP_PENPOT:-false}" = true ]; then
     # Use the existing .env file that Penpot already reads
     if [ -f .env ]; then
         if ! grep -q "PENPOT_FLAGS" .env; then
-            echo 'PENPOT_FLAGS=enable-access-tokens' >> .env
-            info "Added PENPOT_FLAGS=enable-access-tokens to .env"
+            echo 'PENPOT_FLAGS=enable-access-tokens enable-login-with-password enable-registration disable-email-verification' >> .env
+            info "Added PENPOT_FLAGS to .env"
         else
             debug "PENPOT_FLAGS already exists in .env"
         fi
     else
         # Create .env if it doesn't exist
-        echo 'PENPOT_FLAGS=enable-access-tokens' > .env
-        info "Created .env with PENPOT_FLAGS=enable-access-tokens"
+        echo 'PENPOT_FLAGS=enable-access-tokens enable-login-with-password enable-registration disable-email-verification' > .env
+        info "Created .env with PENPOT_FLAGS"
     fi
     
     # Ensure docker-compose.yaml uses variable substitution for PENPOT_FLAGS
@@ -381,7 +381,7 @@ if [ "${SETUP_PENPOT:-false}" = true ]; then
         info "Penpot restarted with new configuration"
     else
         # Pass PENPOT_FLAGS at runtime as backup
-        export PENPOT_FLAGS="enable-access-tokens"
+        export PENPOT_FLAGS="enable-access-tokens enable-login-with-password enable-registration disable-email-verification"
         verbose "Setting PENPOT_FLAGS=$PENPOT_FLAGS"
         
         info "Starting Penpot stack (this may take a few minutes)..."
@@ -477,8 +477,8 @@ if [ "$SKIP_CONFIG" = false ]; then
         info "Created .env from .env_example"
         
         # Auto-enable access tokens for convenience
-        echo 'PENPOT_FLAGS=enable-access-tokens' >> .env
-        info "Enabled PENPOT_FLAGS=enable-access-tokens"
+        echo 'PENPOT_FLAGS=enable-access-tokens enable-login-with-password enable-registration disable-email-verification' >> .env
+        info "Enabled PENPOT_FLAGS"
     else
         cat > .env << 'EOF'
 PENPOT_PUBLIC_URL=http://localhost:9001
@@ -487,7 +487,7 @@ PENPOT_EMAIL=
 PENPOT_PASSWORD=
 PENPOT_DB_PASS=penpot
 MCP_PORT=8787
-PENPOT_FLAGS=enable-access-tokens
+PENPOT_FLAGS=enable-access-tokens enable-login-with-password enable-registration disable-email-verification
 EOF
         info "Created .env with defaults"
     fi
@@ -554,6 +554,9 @@ EOF
         echo ""
         echo "  (Access Tokens menu is available because we"
         echo "   started Penpot with enable-access-tokens flag)"
+        echo ""
+        echo "  Note: You can also register a new account using"
+        echo "  email/password since we enabled registration flags."
         echo ""
         read -rp "Paste your access token: " token
         if [ -n "$token" ]; then
