@@ -174,11 +174,19 @@ fi
 
 # ── Penpot Setup Decision ───────────────────────────────────
 
+# Determine what to do with Penpot
+# Cases:
+# 1. Running + file exists → Ask use/reinstall/skip
+# 2. Not running + file exists → Ask start/existing/fresh  
+# 3. No file → Ask set up new / skip
+
 if [ "$SKIP_PENPOT" = true ]; then
     info "Skipping Penpot setup (--skip-penpot flag)"
+    SETUP_PENPOT=false
+    
 elif [ "$PENPOT_RUNNING" = true ]; then
     echo ""
-    prompt "Penpot is already running. Use existing or reinstall?"
+    prompt "Penpot is already running. What would you like to do?"
     echo ""
     echo "  [U] Use existing Penpot (recommended)"
     echo "  [R] Reinstall fresh"
@@ -189,36 +197,62 @@ elif [ "$PENPOT_RUNNING" = true ]; then
     
     if [[ "$penpot_choice" =~ ^[uU]$ ]]; then
         info "Using existing Penpot"
+        SETUP_PENPOT=false
     elif [[ "$penpot_choice" =~ ^[rR]$ ]]; then
         info "Reinstalling Penpot..."
         docker compose -p penpot -f docker-compose.yaml down
         rm docker-compose.yaml
-        PENPOT_ALREADY_SETUP=false
-        PENPOT_RUNNING=false
+        SETUP_PENPOT=true
     else
         info "Skipping Penpot setup"
-        PENPOT_RUNNING=false
-        PENPOT_ALREADY_SETUP=false
+        SETUP_PENPOT=false
     fi
-fi
-
-# If Penpot not running and not already setup, ask to set up
-if [ "$PENPOT_RUNNING" = false ] && [ "$PENPOT_ALREADY_SETUP" = false ]; then
+    
+elif [ "$PENPOT_ALREADY_SETUP" = true ]; then
+    # File exists but not running
+    echo ""
+    prompt "Found docker-compose.yaml but Penpot is not running."
+    echo ""
+    echo "  [S] Start existing setup (recommended)"
+    echo "  [F] Fresh download and setup"
+    echo "  [S] Skip Penpot setup"
+    echo ""
+    read -rp "Choice [S/f/s]: " penpot_choice
+    penpot_choice="${penpot_choice:-S}"
+    
+    if [[ "$penpot_choice" =~ ^[sS]$ || -z "$penpot_choice" ]]; then
+        info "Starting existing Penpot setup"
+        SETUP_PENPOT=true
+        SETUP_PENPOT_MODE="start"
+    elif [[ "$penpot_choice" =~ ^[fF]$ ]]; then
+        info "Fresh setup..."
+        rm docker-compose.yaml
+        SETUP_PENPOT=true
+        SETUP_PENPOT_MODE="fresh"
+    else
+        info "Skipping Penpot setup"
+        SETUP_PENPOT=false
+    fi
+    
+else
+    # No file, need to set up
     if [ "$SKIP_PENPOT" = true ]; then
         warn "Penpot not found and --skip-penpot is set. MCP may not work."
+        SETUP_PENPOT=false
     else
         echo ""
         prompt "Penpot doesn't seem to be set up."
         echo ""
         echo "Options:"
         echo "  [Y] Set up full Penpot stack now (recommended)"
-        echo "  [n] Skip Penpot setup (use existing Penpot URL manually)"
+        echo "  [n] Skip Penpot setup"
         echo ""
         read -rp "Set up Penpot? [Y/n]: " setup_penpot
         setup_penpot="${setup_penpot:-Y}"
         
         if [[ "$setup_penpot" =~ ^[yY]$ || -z "$setup_penpot" ]]; then
             SETUP_PENPOT=true
+            SETUP_PENPOT_MODE="fresh"
         else
             SETUP_PENPOT=false
         fi
@@ -236,18 +270,14 @@ if [ "${SETUP_PENPOT:-false}" = true ]; then
         verbose "Removed old docker-compose.override.yml"
     fi
     
-    if [ -f docker-compose.yaml ]; then
-        warn "docker-compose.yaml already exists"
-        read -rp "Re-download Penpot compose? (y/N): " redownload
-        if [[ "$redownload" =~ ^[yY]$ ]]; then
-            rm docker-compose.yaml
-            info "Re-downloading Penpot docker-compose..."
-        else
-            info "Using existing docker-compose.yaml"
-        fi
-    fi
+    # Handle based on mode
+    SETUP_MODE="${SETUP_PENPOT_MODE:-fresh}"
     
-    if [ ! -f docker-compose.yaml ]; then
+    if [ "$SETUP_MODE" = "fresh" ]; then
+        # Fresh download
+        if [ -f docker-compose.yaml ]; then
+            rm docker-compose.yaml
+        fi
         info "Downloading Penpot docker-compose..."
         verbose "URL: https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml"
         
@@ -256,6 +286,13 @@ if [ "${SETUP_PENPOT:-false}" = true ]; then
         else
             wget -q https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml
         fi
+    else
+        # Start existing - just verify file exists
+        if [ ! -f docker-compose.yaml ]; then
+            info "Downloading Penpot docker-compose (not found)..."
+            wget -q https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml
+        fi
+        info "Using existing docker-compose.yaml"
     fi
     
     # Enable access tokens for self-hosted Penpot
@@ -324,17 +361,32 @@ fi
 
 header "Configuration"
 
+# Check if .env already exists with valid config
+SKIP_CONFIG=false
 if [ -f .env ]; then
-    warn ".env file already exists."
-    read -rp "Overwrite? (y/N): " overwrite
-    if [[ ! "$overwrite" =~ ^[yY]$ ]]; then
-        info "Keeping existing .env"
-    else
-        rm .env
+    EXISTING_URL=$(grep "^PENPOT_PUBLIC_URL=" .env 2>/dev/null | cut -d= -f2-)
+    EXISTING_TOKEN=$(grep "^PENPOT_ACCESS_TOKEN=" .env 2>/dev/null | cut -d= -f2-)
+    
+    if [ -n "$EXISTING_URL" ]; then
+        echo ""
+        prompt "Found existing .env with configuration."
+        echo ""
+        echo "  [U] Use existing configuration"
+        echo "  [N] Create new configuration"
+        echo ""
+        read -rp "Choice [U/n]: " config_choice
+        config_choice="${config_choice:-U}"
+        
+        if [[ "$config_choice" =~ ^[uU]$ || -z "$config_choice" ]]; then
+            info "Using existing configuration"
+            SKIP_CONFIG=true
+        else
+            rm .env
+        fi
     fi
 fi
 
-if [ ! -f .env ]; then
+if [ "$SKIP_CONFIG" = false ]; then
     if [ -f .env_example ]; then
         cp .env_example .env
         info "Created .env from .env_example"
@@ -361,33 +413,75 @@ EOF
     sed -i "s|PENPOT_PUBLIC_URL=.*|PENPOT_PUBLIC_URL=${penpot_url}|" .env
     info "Public URL: ${penpot_url}"
 
-    # Access Token
-    echo ""
-    echo "An access token is needed to authenticate with Penpot."
-    echo "To create one:"
-    echo "  1. Open Penpot in your browser"
-    echo "  2. Click your avatar (bottom-left) → Access Tokens"
-    echo "  3. Click 'Generate new token'"
-    echo "  4. Copy the token"
-    echo ""
-    echo "Note: You need 'enable-access-tokens' in PENPOT_FLAGS."
-    echo "Add it to your Penpot .env file and restart if needed."
-    echo ""
-    read -rp "Access token (or press Enter to skip): " token
-    if [ -n "$token" ]; then
-        sed -i "s|PENPOT_ACCESS_TOKEN=.*|PENPOT_ACCESS_TOKEN=${token}|" .env
-        info "Access token configured"
-    else
-        warn "No access token. You can add it to .env later."
+    # Access Token - Check if already configured
+    EXISTING_TOKEN=$(grep "^PENPOT_ACCESS_TOKEN=" .env 2>/dev/null | cut -d= -f2-)
+    
+    if [ -n "$EXISTING_TOKEN" ]; then
         echo ""
-        echo "Alternatively, provide email/password credentials:"
-        read -rp "Penpot email (or Enter to skip): " email
-        if [ -n "$email" ]; then
-            read -rsp "Penpot password: " password
+        info "Found existing access token in .env"
+        
+        # Ask if user wants to use it or create new
+        echo ""
+        prompt "Use existing token or create a new one?"
+        echo ""
+        echo "  [E] Use existing token"
+        echo "  [N] Create new token"
+        echo ""
+        read -rp "Choice [e/n]: " token_choice
+        token_choice="${token_choice:-E}"
+        
+        if [[ "$token_choice" =~ ^[nN]$ ]]; then
+            # Create new token - show instructions
             echo ""
-            sed -i "s|PENPOT_EMAIL=.*|PENPOT_EMAIL=${email}|" .env
-            sed -i "s|PENPOT_PASSWORD=.*|PENPOT_PASSWORD=${password}|" .env
-            info "Email/password credentials configured"
+            echo "────────────────────────────────────────────────────"
+            echo "  While Penpot is running, create a new token:"
+            echo ""
+            echo "  1. Open http://localhost:9001 in your browser"
+            echo "  2. Click your avatar (bottom-left)"
+            echo "  3. Click 'Access Tokens'"
+            echo "  4. Click 'Generate new token'"
+            echo "  5. Copy the token"
+            echo ""
+            read -rp "Paste your new access token: " new_token
+            if [ -n "$new_token" ]; then
+                sed -i "s|PENPOT_ACCESS_TOKEN=.*|PENPOT_ACCESS_TOKEN=${new_token}|" .env
+                info "Access token updated"
+            fi
+        else
+            info "Using existing token"
+        fi
+    else
+        # No existing token - need to create one
+        echo ""
+        echo "────────────────────────────────────────────────────"
+        echo "  Create an access token to authenticate with MCP:"
+        echo ""
+        echo "  1. Open http://localhost:9001 in your browser"
+        echo "  2. Click your avatar (bottom-left)"
+        echo "  3. Click 'Access Tokens'"
+        echo "  4. Click 'Generate new token'"
+        echo "  5. Copy the token"
+        echo ""
+        echo "  (Access Tokens menu is available because we"
+        echo "   started Penpot with enable-access-tokens flag)"
+        echo ""
+        read -rp "Paste your access token: " token
+        if [ -n "$token" ]; then
+            sed -i "s|PENPOT_ACCESS_TOKEN=.*|PENPOT_ACCESS_TOKEN=${token}|" .env
+            info "Access token configured"
+        else
+            warn "No access token. MCP tools will not work without it."
+            warn "You can add it to .env later."
+            echo ""
+            echo "Alternative: Use email/password instead:"
+            read -rp "Penpot email (or press Enter to skip): " email
+            if [ -n "$email" ]; then
+                read -rsp "Penpot password: " password
+                echo ""
+                sed -i "s|PENPOT_EMAIL=.*|PENPOT_EMAIL=${email}|" .env
+                sed -i "s|PENPOT_PASSWORD=.*|PENPOT_PASSWORD=${password}|" .env
+                info "Email/password credentials configured"
+            fi
         fi
     fi
 
