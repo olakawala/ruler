@@ -196,13 +196,31 @@ elif [ "$PENPOT_RUNNING" = true ]; then
     penpot_choice="${penpot_choice:-U}"
     
     if [[ "$penpot_choice" =~ ^[uU]$ ]]; then
-        info "Using existing Penpot"
-        SETUP_PENPOT=false
+        # Check if we need to restart (e.g., new flags)
+        NEEDS_RESTART=false
+        
+        # Check if PENPOT_FLAGS needs to be added
+        if ! grep -q "PENPOT_FLAGS" docker-compose.yaml 2>/dev/null; then
+            NEEDS_RESTART=true
+            verbose "PENPOT_FLAGS not found in docker-compose.yaml - needs restart"
+        fi
+        
+        if [ "$NEEDS_RESTART" = true ]; then
+            warn "Penpot needs to be restarted to apply new configuration..."
+            info "Stopping Penpot..."
+            docker compose -p penpot -f docker-compose.yaml down
+            SETUP_PENPOT=true
+            SETUP_PENPOT_MODE="start"
+        else
+            info "Using existing Penpot"
+            SETUP_PENPOT=false
+        fi
     elif [[ "$penpot_choice" =~ ^[rR]$ ]]; then
         info "Reinstalling Penpot..."
         docker compose -p penpot -f docker-compose.yaml down
         rm docker-compose.yaml
         SETUP_PENPOT=true
+        SETUP_PENPOT_MODE="fresh"
     else
         info "Skipping Penpot setup"
         SETUP_PENPOT=false
@@ -215,9 +233,9 @@ elif [ "$PENPOT_ALREADY_SETUP" = true ]; then
     echo ""
     echo "  [S] Start existing setup (recommended)"
     echo "  [F] Fresh download and setup"
-    echo "  [S] Skip Penpot setup"
+    echo "  [K] Skip Penpot setup"
     echo ""
-    read -rp "Choice [S/f/s]: " penpot_choice
+    read -rp "Choice [S/f/k]: " penpot_choice
     penpot_choice="${penpot_choice:-S}"
     
     if [[ "$penpot_choice" =~ ^[sS]$ || -z "$penpot_choice" ]]; then
