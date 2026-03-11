@@ -5,17 +5,17 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-# Copy source code first
-COPY src/ ./src/
-
-# Copy dependency files
+# Copy pyproject.toml first for dependency resolution
 COPY pyproject.toml ./
 
 # Install dependencies
 RUN uv sync --no-dev
 
-# Set PYTHONPATH so penpot_mcp module can be found
-ENV PYTHONPATH=/app/src:$PYTHONPATH
+# Copy source code - penpot_mcp package
+COPY src/ ./src/
+
+# Install the package in editable mode so penpot_mcp module is discoverable
+RUN uv pip install -e . --no-deps
 
 # Expose MCP port
 EXPOSE 8787
