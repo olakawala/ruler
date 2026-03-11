@@ -19,7 +19,7 @@
 services:
   penpot-mcp:
     build:
-      context: ./penpot-mcp-server
+      context: .
       dockerfile: Dockerfile
     container_name: penpot-mcp
     restart: unless-stopped
