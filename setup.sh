@@ -295,8 +295,33 @@ if [ "${SETUP_PENPOT:-false}" = true ]; then
         info "Using existing docker-compose.yaml"
     fi
     
-    # Enable access tokens for self-hosted Penpot
-    # This allows creating API tokens for MCP authentication
+    # Add PENPOT_FLAGS to enable access tokens in self-hosted Penpot
+    # This modifies the docker-compose.yaml to make it persistent
+    if ! grep -q "PENPOT_FLAGS" docker-compose.yaml; then
+        verbose "Adding PENPOT_FLAGS to docker-compose.yaml"
+        
+        # Use awk to insert PENPOT_FLAGS after penpot-backend service definition
+        awk '
+        /^  penpot-backend:/ { found=1 }
+        found && /environment:/ && !added {
+            print "      PENPOT_FLAGS: \"enable-access-tokens\""
+            added=1
+        }
+        { print }
+        ' docker-compose.yaml > docker-compose.yaml.tmp && mv docker-compose.yaml.tmp docker-compose.yaml
+        
+        if grep -q "PENPOT_FLAGS" docker-compose.yaml; then
+            info "Added PENPOT_FLAGS=enable-access-tokens to docker-compose.yaml"
+            verbose "PENPOT_FLAGS added to penpot-backend service"
+        else
+            warn "Could not auto-add PENPOT_FLAGS. You may need to edit docker-compose.yaml manually."
+            debug "Manual fix: Add 'PENPOT_FLAGS: \"enable-access-tokens\"' to penpot-backend environment section"
+        fi
+    else
+        debug "PENPOT_FLAGS already exists in docker-compose.yaml"
+    fi
+    
+    # Enable access tokens for self-hosted Penpot (also pass at runtime as backup)
     export PENPOT_FLAGS="enable-access-tokens"
     verbose "Setting PENPOT_FLAGS=$PENPOT_FLAGS"
     
