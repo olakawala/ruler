@@ -355,14 +355,40 @@ if [ "${SETUP_PENPOT:-false}" = true ]; then
         info "Created .env with PENPOT_FLAGS=enable-access-tokens"
     fi
     
-    # Pass PENPOT_FLAGS at runtime as well (backup)
-    export PENPOT_FLAGS="enable-access-tokens"
-    verbose "Setting PENPOT_FLAGS=$PENPOT_FLAGS"
+    # Ensure docker-compose.yaml uses variable substitution for PENPOT_FLAGS
+    if grep -q "PENPOT_FLAGS:" docker-compose.yaml && ! grep -q "\${PENPOT_FLAGS" docker-compose.yaml; then
+        verbose "Updating PENPOT_FLAGS to use variable substitution"
+        awk '
+        /PENPOT_FLAGS:/ && !/\${PENPOT_FLAGS/ {
+            match($0, /^[[:space:]]*/)
+            spaces = substr($0, 1, RLENGTH)
+            print spaces "PENPOT_FLAGS: ${PENPOT_FLAGS:-disable-email-verification enable-smtp enable-prepl-server disable-secure-session-cookies}"
+            next
+        }
+        { print }
+        ' docker-compose.yaml > docker-compose.yaml.tmp && mv docker-compose.yaml.tmp docker-compose.yaml
+        
+        if grep -q "\${PENPOT_FLAGS" docker-compose.yaml; then
+            info "Updated PENPOT_FLAGS in docker-compose.yaml to support .env override"
+        fi
+    fi
     
-    info "Starting Penpot stack (this may take a few minutes)..."
-    verbose "Running: docker compose -p penpot -f docker-compose.yaml up -d"
-    
-    docker compose -p penpot -f docker-compose.yaml up -d
+    # Check if Penpot is already running - if so, restart to pick up new .env
+    if docker ps --format '{{.Names}}' | grep -q 'penpot-frontend'; then
+        info "Restarting Penpot to apply new PENPOT_FLAGS..."
+        verbose "Running: docker compose -p penpot -f docker-compose.yaml restart"
+        docker compose -p penpot -f docker-compose.yaml restart
+        info "Penpot restarted with new configuration"
+    else
+        # Pass PENPOT_FLAGS at runtime as backup
+        export PENPOT_FLAGS="enable-access-tokens"
+        verbose "Setting PENPOT_FLAGS=$PENPOT_FLAGS"
+        
+        info "Starting Penpot stack (this may take a few minutes)..."
+        verbose "Running: docker compose -p penpot -f docker-compose.yaml up -d"
+        
+        docker compose -p penpot -f docker-compose.yaml up -d
+    fi
     
     info "Waiting for Penpot to be ready..."
     debug "Starting health check loop (max 60 attempts, 5s interval)"
