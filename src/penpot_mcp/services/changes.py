@@ -87,6 +87,62 @@ def build_fill(
     return {"fill-color": color, "fill-opacity": opacity}
 
 
+def build_gradient(
+    gradient_type: str = "linear",
+    stops: list[dict] | None = None,
+    angle: float = 0,
+) -> dict:
+    """Build a gradient definition for fills.
+
+    Args:
+        gradient_type: "linear" or "radial"
+        stops: List of {color, position} dicts. Position is 0-1.
+        angle: Angle in degrees for linear gradients.
+
+    Example:
+        build_gradient(
+            gradient_type="linear",
+            stops=[
+                {"color": "#FF0000", "position": 0},
+                {"color": "#0000FF", "position": 1}
+            ],
+            angle=45
+        )
+    """
+    if not stops:
+        stops = [
+            {"color": "#FFFFFF", "position": 0},
+            {"color": "#000000", "position": 1},
+        ]
+
+    stops_data = [
+        {"color": s.get("color", "#000000"), "offset": s.get("position", 0)}
+        for s in stops
+    ]
+
+    if gradient_type == "radial":
+        return {
+            "type": "radial",
+            "stops": stops_data,
+            "start-x": 0.5,
+            "start-y": 0.5,
+            "end-x": 0.5,
+            "end-y": 0.5,
+        }
+    else:
+        import math
+
+        rad = math.radians(angle)
+        return {
+            "type": "linear",
+            "stops": stops_data,
+            "start-x": 0.5 + 0.5 * math.cos(rad + math.pi),
+            "start-y": 0.5 + 0.5 * math.sin(rad + math.pi),
+            "end-x": 0.5 + 0.5 * math.cos(rad),
+            "end-y": 0.5 + 0.5 * math.sin(rad),
+        }
+
+
 def build_stroke(
     color: str = "#000000",
     width: float = 1.0,

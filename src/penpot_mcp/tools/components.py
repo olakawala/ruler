@@ -1,7 +1,8 @@
-"""Component, design token, color, and typography reading tools."""
+"""Component, design token, color, and typography reading/writing tools."""
 
 from __future__ import annotations
 
+from typing import Any
 
 from penpot_mcp.services.api import api
 
@@ -33,6 +34,108 @@ async def get_component_instances(file_id: str) -> list[dict]:
             }
         )
     return result
+
+
+async def create_component_instance(
+    file_id: str,
+    page_id: str,
+    component_id: str,
+    x: float = 0,
+    y: float = 0,
+    name: str | None = None,
+    component_file_id: str | None = None,
+) -> dict:
+    """Create an instance of an existing component on a page.
+
+    This creates a reference to a component rather than duplicating shapes.
+    Changes to the component will propagate to all instances.
+
+    Args:
+        file_id: The file UUID (where to place the instance).
+        page_id: The page UUID.
+        component_id: The component UUID to instantiate.
+        x: X position for the instance (default 0).
+        y: Y position for the instance (default 0).
+        name: Optional name for the instance.
+        component_file_id: File containing the component. If different from file_id,
+                         the component is from a shared library.
+
+    Returns:
+        Dict with instance_id, component_id, and position.
+
+    Example:
+        # Get available components
+        components = get_component_instances(file_id)
+
+        # Create 4 instances in a grid
+        for i in range(4):
+            create_component_instance(
+                file_id, page_id,
+                component_id=components[0]["id"],
+                x=i * 200, y=0
+            )
+    """
+    from penpot_mcp.services.changes import (
+        ROOT_FRAME_ID,
+        apply_changes,
+        change_add_obj,
+        new_uuid,
+    )
+
+    # Get component file - defaults to same file
+    comp_file = component_file_id or file_id
+
+    # Get the component definition to find its bounds
+    file_data = await _get_file_data(comp_file)
+    components = file_data.get("data", {}).get("components", {})
+    component = components.get(component_id, {})
+
+    # Get the main instance to determine size
+    main_instance_id = component.get("main-instance-id")
+    width = 100
+    height = 100
+
+    if main_instance_id:
+        # Try to get dimensions from the main instance
+        pages = file_data.get("data", {}).get("pages-index", {})
+        for page_data in pages.values():
+            objects = page_data.get("objects", {})
+            main_inst = objects.get(main_instance_id, {})
+            width = main_inst.get("width", 100)
+            height = main_inst.get("height", 100)
+            break
+
+    instance_id = new_uuid()
+
+    # Create the instance - a shape that references the component
+    # The key is setting component-id and component-file
+    obj: dict[str, Any] = {
+        "id": instance_id,
+        "type": "frame",
+        "name": name or f"{component.get('name', 'Component')} Instance",
+        "x": x,
+        "y": y,
+        "width": width,
+        "height": height,
+        "component-id": component_id,
+        "component-file": comp_file,
+        "shapes": [],
+        "hide-in-viewer": False,
+    }
+
+    change = change_add_obj(page_id, ROOT_FRAME_ID, obj)
+    await apply_changes(file_id, [change])
+
+    return {
+        "instance_id": instance_id,
+        "component_id": component_id,
+        "component_file": comp_file,
+        "x": x,
+        "y": y,
+        "width": width,
+        "height": height,
+        "name": obj["name"],
+    }
 
 
 async def get_design_tokens(file_id: str) -> dict:

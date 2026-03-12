@@ -128,6 +128,64 @@ async def plugin_config(request):
 
 
 # ═══════════════════════════════════════════════════════════════
+# Category 0: Session Context Management
+# ═══════════════════════════════════════════════════════════════
+
+
+@mcp.tool()
+async def ruler_set_context(file_id: str, page_id: str | None = None) -> str:
+    """Set the current context for subsequent operations.
+
+    This lets you avoid passing file_id and page_id to every tool.
+    The context persists for the duration of the MCP server session.
+
+    Args:
+        file_id: The file UUID to set as current.
+        page_id: Optional page UUID. If not provided, set it later.
+
+    Example:
+        # Set context once
+        ruler_set_context(file_id="abc-123", page_id="xyz-789")
+
+        # Later calls can use the context
+    """
+    from penpot_mcp.tools.context import set_context as _set_context
+
+    result = await _set_context(file_id, page_id)
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+async def ruler_get_context() -> str:
+    """Get the current session context.
+
+    Returns the current file_id and page_id if set.
+
+    Example:
+        ctx = ruler_get_context()
+        if ctx["has_context"]:
+            print(f"Working with file: {ctx['file_id']}")
+    """
+    from penpot_mcp.tools.context import get_context as _get_context
+
+    result = await _get_context()
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+async def ruler_clear_context() -> str:
+    """Clear the current session context.
+
+    Example:
+        ruler_clear_context()  # Reset to no context
+    """
+    from penpot_mcp.tools.context import clear_context as _clear_context
+
+    result = await _clear_context()
+    return json.dumps(result, indent=2)
+
+
+# ═══════════════════════════════════════════════════════════════
 # Category 1: Projects & Teams
 # ═══════════════════════════════════════════════════════════════
 
@@ -799,13 +857,16 @@ async def create_rectangle(
     width: float = 100,
     height: float = 100,
     name: str = "Rectangle",
-    fill_color: str = "#B1B2B5",
+    fill_color: str | None = None,
     fill_opacity: float = 1.0,
     stroke_color: str | None = None,
     stroke_width: float = 1.0,
     opacity: float = 1.0,
     border_radius: float = 0,
     parent_id: str | None = None,
+    gradient_type: str | None = None,
+    gradient_stops: list[dict] | None = None,
+    gradient_angle: float = 0,
 ) -> str:
     """Create a rectangle shape on a page.
 
@@ -824,6 +885,9 @@ async def create_rectangle(
         opacity: Overall opacity 0-1 (default 1.0).
         border_radius: Corner radius for all corners (default 0).
         parent_id: Parent shape ID. If omitted, adds to root frame.
+        gradient_type: Gradient type - "linear" or "radial". If set, uses gradient instead of fill_color.
+        gradient_stops: List of {color, position} for gradient stops. Position is 0-1.
+        gradient_angle: Angle in degrees for linear gradient (default 0).
     """
     from penpot_mcp.tools.create import create_rectangle as _create
 
@@ -842,6 +906,9 @@ async def create_rectangle(
         opacity,
         border_radius,
         parent_id,
+        gradient_type,
+        gradient_stops,
+        gradient_angle,
     )
     return json.dumps(result, indent=2, default=str)
 
@@ -855,7 +922,7 @@ async def create_frame(
     width: float = 300,
     height: float = 300,
     name: str = "Frame",
-    fill_color: str = "#FFFFFF",
+    fill_color: str | None = None,
     fill_opacity: float = 1.0,
     stroke_color: str | None = None,
     stroke_width: float = 1.0,
@@ -863,6 +930,9 @@ async def create_frame(
     border_radius: float = 0,
     clip_content: bool = True,
     parent_id: str | None = None,
+    gradient_type: str | None = None,
+    gradient_stops: list[dict] | None = None,
+    gradient_angle: float = 0,
 ) -> str:
     """Create a frame (artboard/container) that can hold child shapes.
 
@@ -882,6 +952,9 @@ async def create_frame(
         border_radius: Corner radius (default 0).
         clip_content: Clip children at frame bounds (default true).
         parent_id: Parent frame ID. If omitted, adds to root.
+        gradient_type: Gradient type - "linear" or "radial". If set, uses gradient instead of fill_color.
+        gradient_stops: List of {color, position} for gradient stops. Position is 0-1.
+        gradient_angle: Angle in degrees for linear gradient (default 0).
     """
     from penpot_mcp.tools.create import create_frame as _create
 
@@ -901,6 +974,9 @@ async def create_frame(
         border_radius,
         clip_content,
         parent_id,
+        gradient_type,
+        gradient_stops,
+        gradient_angle,
     )
     return json.dumps(result, indent=2, default=str)
 
@@ -914,12 +990,15 @@ async def create_ellipse(
     width: float = 100,
     height: float = 100,
     name: str = "Ellipse",
-    fill_color: str = "#B1B2B5",
+    fill_color: str | None = None,
     fill_opacity: float = 1.0,
     stroke_color: str | None = None,
     stroke_width: float = 1.0,
     opacity: float = 1.0,
     parent_id: str | None = None,
+    gradient_type: str | None = None,
+    gradient_stops: list[dict] | None = None,
+    gradient_angle: float = 0,
 ) -> str:
     """Create an ellipse (or circle if width==height) on a page.
 
@@ -937,6 +1016,9 @@ async def create_ellipse(
         stroke_width: Stroke width (default 1.0).
         opacity: Overall opacity 0-1 (default 1.0).
         parent_id: Parent shape ID. If omitted, adds to root.
+        gradient_type: Gradient type - "linear" or "radial". If set, uses gradient instead of fill_color.
+        gradient_stops: List of {color, position} for gradient stops. Position is 0-1.
+        gradient_angle: Angle in degrees for linear gradient (default 0).
     """
     from penpot_mcp.tools.create import create_ellipse as _create
 
@@ -954,6 +1036,9 @@ async def create_ellipse(
         stroke_width,
         opacity,
         parent_id,
+        gradient_type,
+        gradient_stops,
+        gradient_angle,
     )
     return json.dumps(result, indent=2, default=str)
 
@@ -1121,6 +1206,53 @@ async def create_component(
 
 
 @mcp.tool()
+async def create_component_instance(
+    file_id: str,
+    page_id: str,
+    component_id: str,
+    x: float = 0,
+    y: float = 0,
+    name: str | None = None,
+    component_file_id: str | None = None,
+) -> str:
+    """Create an instance of an existing component on a page.
+
+    This creates a reference to a component rather than duplicating shapes.
+    Changes to the component will propagate to all instances.
+
+    Args:
+        file_id: The file UUID (where to place the instance).
+        page_id: The page UUID.
+        component_id: The component UUID to instantiate.
+        x: X position for the instance (default 0).
+        y: Y position for the instance (default 0).
+        name: Optional name for the instance.
+        component_file_id: File containing the component. If different from file_id,
+                         the component is from a shared library.
+
+    Example:
+        # Get available components
+        components = get_component_instances(file_id)
+
+        # Create 4 instances in a grid
+        for i in range(4):
+            create_component_instance(
+                file_id, page_id,
+                component_id=components[0]["id"],
+                x=i * 200, y=0
+            )
+    """
+    from penpot_mcp.tools.components import (
+        create_component_instance as _create_instance,
+    )
+
+    result = await _create_instance(
+        file_id, page_id, component_id, x, y, name, component_file_id
+    )
+    return json.dumps(result, indent=2, default=str)
+
+
+@mcp.tool()
 async def create_page(file_id: str, name: str = "New Page") -> str:
     """Add a new page to a file.
 
@@ -1186,9 +1318,48 @@ async def create_shapes_batch(
     return json.dumps(result, indent=2, default=str)
 
 
-# ═══════════════════════════════════════════════════════════════
+@mcp.tool()
+async def import_svg(
+    file_id: str,
+    page_id: str,
+    svg_content: str,
+    x: float = 0,
+    y: float = 0,
+) -> str:
+    """Import an SVG string as Penpot shapes.
+
+    Parses SVG content and creates shapes using batch creation.
+    Supports: rect, circle, ellipse, text, path, and group elements.
+
+    Args:
+        file_id: The file UUID.
+        page_id: The page UUID.
+        svg_content: The SVG string to import.
+        x: X position offset (default 0).
+        y: Y position offset (default 0).
+
+    Returns:
+        JSON array of created shapes.
+
+    Example:
+        svg = '''<svg width="200" height="100">
+            <rect x="0" y="0" width="100" height="50" fill="red"/>
+            <circle cx="150" cy="25" r="20" fill="blue"/>
+        </svg>'''
+
+        import_svg(file_id, page_id, svg, x=100, y=200)
+    """
+    from penpot_mcp.tools.svg_import import parse_svg_to_shapes
+    from penpot_mcp.tools.create import create_shapes_batch
+
+    shapes = parse_svg_to_shapes(svg_content, x, y)
+    result = await create_shapes_batch(file_id, page_id, shapes)
+    return json.dumps(result, indent=2, default=str)
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # Category 10: Shape Modification
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════
 
 
 @mcp.tool()
@@ -1209,20 +1380,26 @@ async def modify_shape(file_id: str, page_id: str, shape_id: str, attrs: dict) -
 
 @mcp.tool()
 async def move_shape(
-    file_id: str, page_id: str, shape_id: str, x: float, y: float
+    file_id: str,
+    page_id: str,
+    shape_id: str | None = None,
+    x: float = 0,
+    y: float = 0,
+    shape_name: str | None = None,
 ) -> str:
     """Move a shape to a new position.
 
     Args:
         file_id: The file UUID.
         page_id: The page UUID.
-        shape_id: The shape UUID.
+        shape_id: The shape UUID. Can be omitted if shape_name is provided.
         x: New X position.
         y: New Y position.
+        shape_name: The shape name. Alternative to shape_id for convenience.
     """
     from penpot_mcp.tools.modify import move_shape as _move
 
-    result = await _move(file_id, page_id, shape_id, x, y)
+    result = await _move(file_id, page_id, shape_id, x, y, shape_name)
     return json.dumps(result, indent=2, default=str)
 
 

@@ -39,23 +39,34 @@ async def modify_shape(
 async def move_shape(
     file_id: str,
     page_id: str,
-    shape_id: str,
-    x: float,
-    y: float,
+    shape_id: str | None = None,
+    x: float = 0,
+    y: float = 0,
+    shape_name: str | None = None,
 ) -> dict:
     """Move a shape to a new position.
 
     Args:
         file_id: The file UUID.
         page_id: The page UUID.
-        shape_id: The shape UUID to move.
+        shape_id: The shape UUID to move. Can be omitted if shape_name is provided.
         x: New X position.
         y: New Y position.
+        shape_name: The shape name to move. Alternative to shape_id.
     """
+    from penpot_mcp.tools.smart_refs import resolve_shape_by_name
+
+    if shape_id is None and shape_name is None:
+        raise ValueError("Either shape_id or shape_name must be provided")
+
+    resolved_id: str = shape_id if shape_id else ""
+    if resolved_id == "" and shape_name:
+        resolved_id = await resolve_shape_by_name(file_id, page_id, shape_name)
+
     ops = [set_op("x", x), set_op("y", y)]
-    change = change_mod_obj(page_id, shape_id, ops)
+    change = change_mod_obj(page_id, resolved_id, ops)
     await apply_changes(file_id, [change])
-    return {"shape_id": shape_id, "x": x, "y": y}
+    return {"shape_id": resolved_id, "x": x, "y": y, "shape_name": shape_name}
 
 
 async def resize_shape(
@@ -217,9 +228,10 @@ async def set_layout(
         set_op("layout", layout_type),
         set_op("layout-flex-dir", direction),
         set_op("layout-gap", {"row-gap": gap, "column-gap": gap}),
-        set_op("layout-padding", {
-            "p1": padding, "p2": padding, "p3": padding, "p4": padding
-        }),
+        set_op(
+            "layout-padding",
+            {"p1": padding, "p2": padding, "p3": padding, "p4": padding},
+        ),
         set_op("layout-wrap-type", wrap),
     ]
     if align_items:

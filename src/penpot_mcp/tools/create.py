@@ -8,6 +8,7 @@ from penpot_mcp.services.changes import (
     ROOT_FRAME_ID,
     apply_changes,
     build_fill,
+    build_gradient,
     build_shape_geometry,
     build_stroke,
     build_text_content,
@@ -37,10 +38,23 @@ def _base_shape(
     r3: float = 0,
     r4: float = 0,
     extra: dict | None = None,
+    gradient_type: str | None = None,
+    gradient_stops: list[dict] | None = None,
+    gradient_angle: float = 0,
 ) -> dict:
     """Build a base shape dict with geometry and optional styling."""
     shape_id = new_uuid()
     geom = build_shape_geometry(x, y, width, height)
+
+    # Build fill - either solid color or gradient
+    fill = None
+    if gradient_type and gradient_stops:
+        gradient = build_gradient(gradient_type, gradient_stops, gradient_angle)
+        fill = build_fill(gradient=gradient)
+    elif fill_color:
+        fill = build_fill(color=fill_color, opacity=fill_opacity)
+    elif shape_type in ("rect", "frame"):
+        fill = build_fill()  # default gray
 
     obj: dict[str, Any] = {
         "id": shape_id,
@@ -51,10 +65,8 @@ def _base_shape(
         **geom,
     }
 
-    if fill_color:
-        obj["fills"] = [build_fill(color=fill_color, opacity=fill_opacity)]
-    elif shape_type in ("rect", "frame"):
-        obj["fills"] = [build_fill()]  # default gray
+    if fill:
+        obj["fills"] = [fill]
 
     if stroke_color:
         obj["strokes"] = [build_stroke(color=stroke_color, width=stroke_width)]
@@ -94,13 +106,16 @@ async def create_rectangle(
     width: float = 100,
     height: float = 100,
     name: str = "Rectangle",
-    fill_color: str = "#B1B2B5",
+    fill_color: str | None = None,
     fill_opacity: float = 1.0,
     stroke_color: str | None = None,
     stroke_width: float = 1.0,
     opacity: float = 1.0,
     border_radius: float = 0,
     parent_id: str | None = None,
+    gradient_type: str | None = None,
+    gradient_stops: list[dict] | None = None,
+    gradient_angle: float = 0,
 ) -> dict:
     """Create a rectangle shape on a page.
 
@@ -119,6 +134,9 @@ async def create_rectangle(
         opacity: Overall opacity 0-1 (default 1.0).
         border_radius: Corner radius for all corners (default 0).
         parent_id: Parent shape ID. If omitted, adds to root frame.
+        gradient_type: Gradient type - "linear" or "radial". If set, uses gradient instead of fill_color.
+        gradient_stops: List of {color, position} for gradient stops. Position is 0-1.
+        gradient_angle: Angle in degrees for linear gradient (default 0).
     """
     frame_id = parent_id or ROOT_FRAME_ID
     obj = _base_shape(
@@ -136,6 +154,9 @@ async def create_rectangle(
         stroke_width=stroke_width,
         opacity=opacity,
         border_radius=border_radius,
+        gradient_type=gradient_type,
+        gradient_stops=gradient_stops,
+        gradient_angle=gradient_angle,
     )
     change = change_add_obj(page_id, frame_id, obj)
     await apply_changes(file_id, [change])
@@ -150,7 +171,7 @@ async def create_frame(
     width: float = 300,
     height: float = 300,
     name: str = "Frame",
-    fill_color: str = "#FFFFFF",
+    fill_color: str | None = None,
     fill_opacity: float = 1.0,
     stroke_color: str | None = None,
     stroke_width: float = 1.0,
@@ -158,6 +179,9 @@ async def create_frame(
     border_radius: float = 0,
     clip_content: bool = True,
     parent_id: str | None = None,
+    gradient_type: str | None = None,
+    gradient_stops: list[dict] | None = None,
+    gradient_angle: float = 0,
 ) -> dict:
     """Create a frame (artboard/container) on a page.
 
@@ -179,6 +203,9 @@ async def create_frame(
         border_radius: Corner radius for all corners (default 0).
         clip_content: Whether to clip child content at frame bounds (default true).
         parent_id: Parent frame ID. If omitted, adds to root frame.
+        gradient_type: Gradient type - "linear" or "radial". If set, uses gradient instead of fill_color.
+        gradient_stops: List of {color, position} for gradient stops. Position is 0-1.
+        gradient_angle: Angle in degrees for linear gradient (default 0).
     """
     frame_id = parent_id or ROOT_FRAME_ID
     extra = {
@@ -204,6 +231,9 @@ async def create_frame(
         opacity=opacity,
         border_radius=border_radius,
         extra=extra,
+        gradient_type=gradient_type,
+        gradient_stops=gradient_stops,
+        gradient_angle=gradient_angle,
     )
     change = change_add_obj(page_id, frame_id, obj)
     await apply_changes(file_id, [change])
@@ -218,12 +248,15 @@ async def create_ellipse(
     width: float = 100,
     height: float = 100,
     name: str = "Ellipse",
-    fill_color: str = "#B1B2B5",
+    fill_color: str | None = None,
     fill_opacity: float = 1.0,
     stroke_color: str | None = None,
     stroke_width: float = 1.0,
     opacity: float = 1.0,
     parent_id: str | None = None,
+    gradient_type: str | None = None,
+    gradient_stops: list[dict] | None = None,
+    gradient_angle: float = 0,
 ) -> dict:
     """Create an ellipse (circle) shape on a page.
 
@@ -243,6 +276,9 @@ async def create_ellipse(
         stroke_width: Stroke width in pixels (default 1.0).
         opacity: Overall opacity 0-1 (default 1.0).
         parent_id: Parent shape ID. If omitted, adds to root frame.
+        gradient_type: Gradient type - "linear" or "radial". If set, uses gradient instead of fill_color.
+        gradient_stops: List of {color, position} for gradient stops. Position is 0-1.
+        gradient_angle: Angle in degrees for linear gradient (default 0).
     """
     frame_id = parent_id or ROOT_FRAME_ID
     obj = _base_shape(
@@ -259,6 +295,9 @@ async def create_ellipse(
         stroke_color=stroke_color,
         stroke_width=stroke_width,
         opacity=opacity,
+        gradient_type=gradient_type,
+        gradient_stops=gradient_stops,
+        gradient_angle=gradient_angle,
     )
     change = change_add_obj(page_id, frame_id, obj)
     await apply_changes(file_id, [change])
@@ -554,6 +593,9 @@ async def create_shapes_batch(
             - content: For text shapes, the text content
             - font_size: For text shapes, font size
             - font_family: For text shapes, font family
+            - gradient_type: "linear" or "radial" - uses gradient instead of fill_color
+            - gradient_stops: List of {color, position} for gradient stops
+            - gradient_angle: Angle in degrees for linear gradient
         parent_id: Parent frame ID. If omitted, adds to root frame.
 
     Returns:
@@ -563,7 +605,7 @@ async def create_shapes_batch(
         shapes = [
             {"type": "rect", "x": 0, "y": 0, "width": 100, "height": 50, "fill_color": "#FF0000"},
             {"type": "text", "x": 10, "y": 10, "content": "Hello", "font_size": 24},
-            {"type": "frame", "x": 200, "y": 0, "width": 300, "height": 200, "name": "Card"},
+            {"type": "frame", "x": 200, "y": 0, "width": 300, "height": 200, "name": "Card", "gradient_type": "linear", "gradient_stops": [{"color": "#FF0000", "position": 0}, {"color": "#0000FF", "position": 1}], "gradient_angle": 45},
         ]
     """
     frame_id = parent_id or ROOT_FRAME_ID
@@ -582,6 +624,9 @@ async def create_shapes_batch(
         stroke_width = spec.get("stroke_width", 1.0)
         opacity = spec.get("opacity", 1.0)
         border_radius = spec.get("border_radius", 0)
+        gradient_type = spec.get("gradient_type")
+        gradient_stops = spec.get("gradient_stops")
+        gradient_angle = spec.get("gradient_angle", 0)
 
         if shape_type == "text":
             content = spec.get("content", "")
@@ -602,6 +647,9 @@ async def create_shapes_batch(
                 stroke_width=stroke_width,
                 opacity=opacity,
                 border_radius=border_radius,
+                gradient_type=gradient_type,
+                gradient_stops=gradient_stops,
+                gradient_angle=gradient_angle,
                 extra={
                     "content": build_text_content(content, font_size, font_family),
                     "text-align": spec.get("text_align", "left"),
@@ -623,6 +671,9 @@ async def create_shapes_batch(
                 stroke_width=stroke_width,
                 opacity=opacity,
                 border_radius=border_radius,
+                gradient_type=gradient_type,
+                gradient_stops=gradient_stops,
+                gradient_angle=gradient_angle,
                 extra={"shapes": []} if shape_type == "frame" else None,
             )
 
