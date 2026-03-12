@@ -147,7 +147,7 @@ def _parse_element(
             "fill_color": fill,
             "content": content,
             "font_size": font_size,
-            "font_family": element.get("font-family", "Inter"),
+            "font_family": element.get("font-family", "sourcesanspro"),
         }
 
     elif tag == "path":

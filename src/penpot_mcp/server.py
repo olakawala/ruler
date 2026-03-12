@@ -133,7 +133,7 @@ async def plugin_config(request):
 
 
 @mcp.tool()
-async def ruler_set_context(file_id: str, page_id: str | None = None) -> str:
+async def set_context(file_id: str, page_id: str | None = None) -> str:
     """Set the current context for subsequent operations.
 
     This lets you avoid passing file_id and page_id to every tool.
@@ -141,17 +141,47 @@ async def ruler_set_context(file_id: str, page_id: str | None = None) -> str:
 
     Args:
         file_id: The file UUID to set as current.
-        page_id: Optional page UUID. If not provided, set it later.
+        page_id: Optional page UUID. If not provided, you must set it later.
 
     Example:
         # Set context once
-        ruler_set_context(file_id="abc-123", page_id="xyz-789")
+        set_context(file_id="abc-123", page_id="xyz-789")
 
         # Later calls can use the context
     """
     from penpot_mcp.tools.context import set_context as _set_context
 
     result = await _set_context(file_id, page_id)
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+async def get_context() -> str:
+    """Get the current session context.
+
+    Returns the current file_id and page_id if set.
+
+    Example:
+        ctx = get_context()
+        if ctx["has_context"]:
+            print(f"Working with file: {ctx['file_id']}")
+    """
+    from penpot_mcp.tools.context import get_context as _get_context
+
+    result = await _get_context()
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+async def clear_context() -> str:
+    """Clear the current session context.
+
+    Example:
+        clear_context()  # Reset to no context
+    """
+    from penpot_mcp.tools.context import clear_context as _clear_context
+
+    result = await _clear_context()
     return json.dumps(result, indent=2)
 
 
@@ -1294,7 +1324,7 @@ async def create_shapes_batch(
             - border_radius: Corner radius (default 0)
             - content: For text shapes - the text content
             - font_size: For text shapes - font size (default 16)
-            - font_family: For text shapes - font family (default "Inter")
+            - font_family: For text shapes - font family (default "sourcesanspro")
             - text_align: For text shapes - "left", "center", "right"
         parent_id: Parent frame ID. If omitted, adds to root frame.
 

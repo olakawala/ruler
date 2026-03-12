@@ -631,7 +631,7 @@ async def create_shapes_batch(
         if shape_type == "text":
             content = spec.get("content", "")
             font_size = spec.get("font_size", 16)
-            font_family = spec.get("font_family", "Inter")
+            font_family = spec.get("font_family", "sourcesanspro")
             obj = _base_shape(
                 "text",
                 name,
