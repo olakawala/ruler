@@ -53,6 +53,7 @@ async def plugin_manifest(request):
     """Serve the Penpot plugin manifest."""
     if request.method == "OPTIONS":
         from starlette.responses import Response
+
         return Response(
             status_code=204,
             headers={
@@ -72,6 +73,7 @@ async def plugin_js(request):
     """Serve the Penpot plugin JavaScript."""
     if request.method == "OPTIONS":
         from starlette.responses import Response
+
         return Response(
             status_code=204,
             headers={
@@ -91,6 +93,7 @@ async def plugin_ui(request):
     """Serve the Penpot plugin UI panel."""
     if request.method == "OPTIONS":
         from starlette.responses import Response
+
         return Response(
             status_code=204,
             headers={
@@ -110,6 +113,7 @@ async def plugin_config(request):
     """Serve dynamic plugin configuration (WebSocket URL)."""
     if request.method == "OPTIONS":
         from starlette.responses import Response
+
         return Response(
             status_code=204,
             headers={
@@ -1130,6 +1134,58 @@ async def create_page(file_id: str, name: str = "New Page") -> str:
     return json.dumps(result, indent=2, default=str)
 
 
+@mcp.tool()
+async def create_shapes_batch(
+    file_id: str,
+    page_id: str,
+    shapes: list[dict],
+    parent_id: str | None = None,
+) -> str:
+    """Create multiple shapes in a single API call (batch operation).
+
+    This is MUCH more efficient than creating shapes one-by-one.
+    Use this when you need to create multiple shapes at once.
+
+    Args:
+        file_id: The file UUID.
+        page_id: The page UUID.
+        shapes: List of shape specifications. Each spec supports:
+            - type: Shape type - "rect", "frame", "ellipse", "text", "path"
+            - x, y: Position (default 0)
+            - width, height: Size (default 100)
+            - name: Shape name
+            - fill_color: Fill color hex (e.g., "#FF0000")
+            - fill_opacity: Fill opacity 0-1 (default 1.0)
+            - stroke_color: Stroke color hex
+            - stroke_width: Stroke width (default 1.0)
+            - opacity: Shape opacity 0-1 (default 1.0)
+            - border_radius: Corner radius (default 0)
+            - content: For text shapes - the text content
+            - font_size: For text shapes - font size (default 16)
+            - font_family: For text shapes - font family (default "Inter")
+            - text_align: For text shapes - "left", "center", "right"
+        parent_id: Parent frame ID. If omitted, adds to root frame.
+
+    Returns:
+        JSON array of created shape info.
+
+    Example:
+        create_shapes_batch(
+            file_id="...",
+            page_id="...",
+            shapes=[
+                {"type": "rect", "x": 0, "y": 0, "width": 100, "height": 50, "fill_color": "#FF0000"},
+                {"type": "text", "x": 10, "y": 10, "content": "Hello", "font_size": 24},
+                {"type": "frame", "x": 200, "y": 0, "width": 300, "height": 200, "name": "Card"},
+            ]
+        )
+    """
+    from penpot_mcp.tools.create import create_shapes_batch as _create_batch
+
+    result = await _create_batch(file_id, page_id, shapes, parent_id)
+    return json.dumps(result, indent=2, default=str)
+
+
 # ═══════════════════════════════════════════════════════════════
 # Category 10: Shape Modification
 # ═══════════════════════════════════════════════════════════════
@@ -1584,6 +1640,7 @@ def main():
             await db.connect()
             await api.connect()
             from penpot_mcp.ws_controller import ws_controller
+
             await ws_controller.start()
             logger.info("Penpot MCP server ready (WS on port %d)", settings.ws_port)
             try:

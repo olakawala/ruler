@@ -122,11 +122,20 @@ async def create_rectangle(
     """
     frame_id = parent_id or ROOT_FRAME_ID
     obj = _base_shape(
-        "rect", name, x, y, width, height,
-        frame_id=frame_id, parent_id=parent_id,
-        fill_color=fill_color, fill_opacity=fill_opacity,
-        stroke_color=stroke_color, stroke_width=stroke_width,
-        opacity=opacity, border_radius=border_radius,
+        "rect",
+        name,
+        x,
+        y,
+        width,
+        height,
+        frame_id=frame_id,
+        parent_id=parent_id,
+        fill_color=fill_color,
+        fill_opacity=fill_opacity,
+        stroke_color=stroke_color,
+        stroke_width=stroke_width,
+        opacity=opacity,
+        border_radius=border_radius,
     )
     change = change_add_obj(page_id, frame_id, obj)
     await apply_changes(file_id, [change])
@@ -180,11 +189,20 @@ async def create_frame(
         extra["clip-content"] = True
 
     obj = _base_shape(
-        "frame", name, x, y, width, height,
-        frame_id=frame_id, parent_id=parent_id,
-        fill_color=fill_color, fill_opacity=fill_opacity,
-        stroke_color=stroke_color, stroke_width=stroke_width,
-        opacity=opacity, border_radius=border_radius,
+        "frame",
+        name,
+        x,
+        y,
+        width,
+        height,
+        frame_id=frame_id,
+        parent_id=parent_id,
+        fill_color=fill_color,
+        fill_opacity=fill_opacity,
+        stroke_color=stroke_color,
+        stroke_width=stroke_width,
+        opacity=opacity,
+        border_radius=border_radius,
         extra=extra,
     )
     change = change_add_obj(page_id, frame_id, obj)
@@ -228,10 +246,18 @@ async def create_ellipse(
     """
     frame_id = parent_id or ROOT_FRAME_ID
     obj = _base_shape(
-        "circle", name, x, y, width, height,
-        frame_id=frame_id, parent_id=parent_id,
-        fill_color=fill_color, fill_opacity=fill_opacity,
-        stroke_color=stroke_color, stroke_width=stroke_width,
+        "circle",
+        name,
+        x,
+        y,
+        width,
+        height,
+        frame_id=frame_id,
+        parent_id=parent_id,
+        fill_color=fill_color,
+        fill_opacity=fill_opacity,
+        stroke_color=stroke_color,
+        stroke_width=stroke_width,
         opacity=opacity,
     )
     change = change_add_obj(page_id, frame_id, obj)
@@ -500,3 +526,115 @@ async def create_page(
     change = change_add_page(page_id, name)
     await apply_changes(file_id, [change])
     return {"id": page_id, "name": name}
+
+
+async def create_shapes_batch(
+    file_id: str,
+    page_id: str,
+    shapes: list[dict],
+    parent_id: str | None = None,
+) -> list[dict]:
+    """Create multiple shapes in a single API call (batch operation).
+
+    This is much more efficient than creating shapes one-by-one.
+
+    Args:
+        file_id: The file UUID.
+        page_id: The page UUID.
+        shapes: List of shape specifications. Each spec supports:
+            - type: Shape type - "rect", "frame", "ellipse", "text", "path", "group"
+            - x, y: Position (default 0)
+            - width, height: Size (default 100)
+            - name: Shape name
+            - fill_color: Fill color hex
+            - stroke_color: Stroke color hex
+            - stroke_width: Stroke width
+            - opacity: Shape opacity 0-1
+            - border_radius: Corner radius
+            - content: For text shapes, the text content
+            - font_size: For text shapes, font size
+            - font_family: For text shapes, font family
+        parent_id: Parent frame ID. If omitted, adds to root frame.
+
+    Returns:
+        List of created shape info (id, name, type for each).
+
+    Example:
+        shapes = [
+            {"type": "rect", "x": 0, "y": 0, "width": 100, "height": 50, "fill_color": "#FF0000"},
+            {"type": "text", "x": 10, "y": 10, "content": "Hello", "font_size": 24},
+            {"type": "frame", "x": 200, "y": 0, "width": 300, "height": 200, "name": "Card"},
+        ]
+    """
+    frame_id = parent_id or ROOT_FRAME_ID
+    changes = []
+
+    for spec in shapes:
+        shape_type = spec.get("type", "rect")
+        name = spec.get("name", f"{shape_type.title()} {len(changes) + 1}")
+        x = spec.get("x", 0)
+        y = spec.get("y", 0)
+        width = spec.get("width", 100)
+        height = spec.get("height", 100)
+        fill_color = spec.get("fill_color")
+        fill_opacity = spec.get("fill_opacity", 1.0)
+        stroke_color = spec.get("stroke_color")
+        stroke_width = spec.get("stroke_width", 1.0)
+        opacity = spec.get("opacity", 1.0)
+        border_radius = spec.get("border_radius", 0)
+
+        if shape_type == "text":
+            content = spec.get("content", "")
+            font_size = spec.get("font_size", 16)
+            font_family = spec.get("font_family", "Inter")
+            obj = _base_shape(
+                "text",
+                name,
+                x,
+                y,
+                width,
+                height,
+                frame_id=frame_id,
+                parent_id=parent_id,
+                fill_color=fill_color,
+                fill_opacity=fill_opacity,
+                stroke_color=stroke_color,
+                stroke_width=stroke_width,
+                opacity=opacity,
+                border_radius=border_radius,
+                extra={
+                    "content": build_text_content(content, font_size, font_family),
+                    "text-align": spec.get("text_align", "left"),
+                },
+            )
+        else:
+            obj = _base_shape(
+                shape_type,
+                name,
+                x,
+                y,
+                width,
+                height,
+                frame_id=frame_id,
+                parent_id=parent_id,
+                fill_color=fill_color,
+                fill_opacity=fill_opacity,
+                stroke_color=stroke_color,
+                stroke_width=stroke_width,
+                opacity=opacity,
+                border_radius=border_radius,
+                extra={"shapes": []} if shape_type == "frame" else None,
+            )
+
+        changes.append(change_add_obj(page_id, frame_id, obj))
+
+    await apply_changes(file_id, changes)
+
+    return [
+        {
+            "id": spec.get("id") or new_uuid(),
+            "name": spec.get("name", "Shape"),
+            "type": spec.get("type", "rect"),
+        }
+        for spec in shapes
+    ]
