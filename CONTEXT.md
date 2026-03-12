@@ -14,6 +14,23 @@ Ruler is a self-hosted design platform for vibe coding. It connects AI agents to
 
 ---
 
+## Mission & Vision
+
+Ruler is a **free, self-hosted alternative to Paper.design** - an AI-powered design platform for vibe coding.
+
+**Goals:**
+1. Free & unlimited (no rate limits like Paper.design)
+2. Self-hosted (full control)
+3. Open source
+4. AI-first (MCP-native from day 1)
+5. Code-native (HTML/CSS foundation)
+6. More powerful than Paper.design
+
+**Why Paper.design?**
+Paper.design is in open alpha with rate limits (100/week free). Ruler removes these restrictions while providing the same AI-agent integration via MCP.
+
+---
+
 ## Connection
 
 **MCP Endpoint:** `http://<host>:8787/mcp`
@@ -194,6 +211,16 @@ get_shape_css(
 - Penpot uses top-left origin (0,0)
 - Units are in pixels
 
+### Penpot Quirk: String Values for Font Properties
+- Font properties must be **strings**, not integers
+- Example: `"font_size": "15"` not `"font_size": 15`
+- This applies to: create_text, create_shapes_batch, create_rectangle, create_frame, etc.
+- Font weight also needs to be string: `"font_weight": "400"`
+
+### Default Values
+- Default font family: `sourcesanspro` (not Inter)
+- Font sizes should be strings: `"16"`, `"24"`, etc.
+
 ### IDs
 - All IDs are UUIDs (e.g., `"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`)
 
@@ -220,16 +247,21 @@ If a tool fails:
 ## File Locations
 
 ```
-ruler-mcp/
+ruler/
 ├── src/
-│   ├── penpot_mcp/     # Original MCP tools (68 tools)
-│   └── ruler_ext/      # Ruler custom tools
-│       ├── jsx_exporter/
-│       ├── versioning/
-│       ├── skills/
-│       └── enhanced_tools/
+│   ├── penpot_mcp/     # MCP tools (68+ tools) - Ruler's core code now
+│   │   ├── server.py   # Main MCP server
+│   │   ├── tools/      # Shape, project, file tools
+│   │   ├── services/   # API, DB, changes
+│   │   └── context.py  # Session context manager
+│   └── ruler_ext/     # Ruler custom extensions
+│       ├── jsx_exporter/   # React, Vue, Tailwind export
+│       ├── versioning/     # Checkpoints
+│       ├── skills/          # Skill loader
+│       └── enhanced_tools/  # Enhanced features
 ├── ruler-skills/       # Skill markdown files
-└── TOOLS.md           # Full tool documentation
+├── TOOLS.md           # Full tool documentation
+└── docker-compose.*   # Docker configuration
 ```
 
 ---
