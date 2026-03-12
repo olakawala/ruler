@@ -897,6 +897,7 @@ async def create_rectangle(
     gradient_type: str | None = None,
     gradient_stops: list[dict] | None = None,
     gradient_angle: float = 0,
+    gradient_explicit: dict | None = None,
 ) -> str:
     """Create a rectangle shape on a page.
 
@@ -918,6 +919,7 @@ async def create_rectangle(
         gradient_type: Gradient type - "linear" or "radial". If set, uses gradient instead of fill_color.
         gradient_stops: List of {color, position} for gradient stops. Position is 0-1.
         gradient_angle: Angle in degrees for linear gradient (default 0).
+        gradient_explicit: Explicit gradient coords dict with start_x, start_y, end_x, end_y (0-1 range).
     """
     from penpot_mcp.tools.create import create_rectangle as _create
 
@@ -939,6 +941,7 @@ async def create_rectangle(
         gradient_type,
         gradient_stops,
         gradient_angle,
+        gradient_explicit,
     )
     return json.dumps(result, indent=2, default=str)
 

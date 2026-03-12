@@ -91,15 +91,25 @@ def build_gradient(
     gradient_type: str = "linear",
     stops: list[dict] | None = None,
     angle: float = 0,
+    start_x: float | None = None,
+    start_y: float | None = None,
+    end_x: float | None = None,
+    end_y: float | None = None,
 ) -> dict:
     """Build a gradient definition for fills.
+
+    Supports two formats:
+    1. Angle-based: provide angle (degrees) - converted to x/y internally
+    2. Explicit: provide start_x, start_y, end_x, end_y directly
 
     Args:
         gradient_type: "linear" or "radial"
         stops: List of {color, position} dicts. Position is 0-1.
-        angle: Angle in degrees for linear gradients.
+        angle: Angle in degrees for linear gradients (0 = top to bottom).
+        start_x, start_y: Explicit start point (0-1 range)
+        end_x, end_y: Explicit end point (0-1 range)
 
-    Example:
+    Example (angle-based):
         build_gradient(
             gradient_type="linear",
             stops=[
@@ -107,6 +117,17 @@ def build_gradient(
                 {"color": "#0000FF", "position": 1}
             ],
             angle=45
+        )
+
+    Example (explicit coordinates):
+        build_gradient(
+            gradient_type="linear",
+            stops=[
+                {"color": "#FF0000", "position": 0},
+                {"color": "#0000FF", "position": 1}
+            ],
+            start_x=0.5, start_y=0,
+            end_x=0.5, end_y=1
         )
     """
     if not stops:
@@ -124,23 +145,34 @@ def build_gradient(
         return {
             "type": "radial",
             "stops": stops_data,
-            "start-x": 0.5,
-            "start-y": 0.5,
-            "end-x": 0.5,
-            "end-y": 0.5,
+            "start-x": start_x if start_x is not None else 0.5,
+            "start-y": start_y if start_y is not None else 0.5,
+            "end-x": end_x if end_x is not None else 0.5,
+            "end-y": end_y if end_y is not None else 0.5,
         }
     else:
-        import math
+        # Use explicit coordinates if provided, otherwise convert angle
+        if start_x is not None and end_x is not None:
+            return {
+                "type": "linear",
+                "stops": stops_data,
+                "start-x": start_x,
+                "start-y": start_y if start_y is not None else 0.5,
+                "end-x": end_x,
+                "end-y": end_y if end_y is not None else 0.5,
+            }
+        else:
+            import math
 
-        rad = math.radians(angle)
-        return {
-            "type": "linear",
-            "stops": stops_data,
-            "start-x": 0.5 + 0.5 * math.cos(rad + math.pi),
-            "start-y": 0.5 + 0.5 * math.sin(rad + math.pi),
-            "end-x": 0.5 + 0.5 * math.cos(rad),
-            "end-y": 0.5 + 0.5 * math.sin(rad),
-        }
+            rad = math.radians(angle)
+            return {
+                "type": "linear",
+                "stops": stops_data,
+                "start-x": 0.5 + 0.5 * math.cos(rad + math.pi),
+                "start-y": 0.5 + 0.5 * math.sin(rad + math.pi),
+                "end-x": 0.5 + 0.5 * math.cos(rad),
+                "end-y": 0.5 + 0.5 * math.sin(rad),
+            }
 
 
 def build_stroke(

@@ -41,6 +41,10 @@ def _base_shape(
     gradient_type: str | None = None,
     gradient_stops: list[dict] | None = None,
     gradient_angle: float = 0,
+    gradient_start_x: float | None = None,
+    gradient_start_y: float | None = None,
+    gradient_end_x: float | None = None,
+    gradient_end_y: float | None = None,
 ) -> dict:
     """Build a base shape dict with geometry and optional styling."""
     shape_id = new_uuid()
@@ -49,7 +53,15 @@ def _base_shape(
     # Build fill - either solid color or gradient
     fill = None
     if gradient_type and gradient_stops:
-        gradient = build_gradient(gradient_type, gradient_stops, gradient_angle)
+        gradient = build_gradient(
+            gradient_type,
+            gradient_stops,
+            gradient_angle,
+            gradient_start_x,
+            gradient_start_y,
+            gradient_end_x,
+            gradient_end_y,
+        )
         fill = build_fill(gradient=gradient)
     elif fill_color:
         fill = build_fill(color=fill_color, opacity=fill_opacity)
@@ -116,6 +128,7 @@ async def create_rectangle(
     gradient_type: str | None = None,
     gradient_stops: list[dict] | None = None,
     gradient_angle: float = 0,
+    gradient_explicit: dict | None = None,
 ) -> dict:
     """Create a rectangle shape on a page.
 
@@ -137,7 +150,16 @@ async def create_rectangle(
         gradient_type: Gradient type - "linear" or "radial". If set, uses gradient instead of fill_color.
         gradient_stops: List of {color, position} for gradient stops. Position is 0-1.
         gradient_angle: Angle in degrees for linear gradient (default 0).
+        gradient_explicit: Explicit gradient coords dict with start_x, start_y, end_x, end_y (0-1 range).
     """
+    # Parse explicit gradient coords if provided
+    start_x = start_y = end_x = end_y = None
+    if gradient_explicit:
+        start_x = gradient_explicit.get("start_x")
+        start_y = gradient_explicit.get("start_y")
+        end_x = gradient_explicit.get("end_x")
+        end_y = gradient_explicit.get("end_y")
+
     frame_id = parent_id or ROOT_FRAME_ID
     obj = _base_shape(
         "rect",
@@ -157,6 +179,10 @@ async def create_rectangle(
         gradient_type=gradient_type,
         gradient_stops=gradient_stops,
         gradient_angle=gradient_angle,
+        gradient_start_x=start_x,
+        gradient_start_y=start_y,
+        gradient_end_x=end_x,
+        gradient_end_y=end_y,
     )
     change = change_add_obj(page_id, frame_id, obj)
     await apply_changes(file_id, [change])
