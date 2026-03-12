@@ -67,6 +67,18 @@ Additional AI-powered tools:
 - Design token extraction
 - Design analysis
 
+### Latest Updates (v0.2.0)
+
+New features added for efficient AI workflows:
+
+- **Batch Creation** - `create_shapes_batch()` creates multiple shapes in 1 API call instead of 50+ individual calls
+- **Gradient Support** - Add `gradient_type`, `gradient_stops`, `gradient_angle` to `create_rectangle`, `create_frame`, `create_ellipse`
+- **Smart References** - Use shape names instead of UUIDs with `shape_name` param on `move_shape`
+- **Component Instances** - `create_component_instance()` places existing components on canvas - perfect for grids
+- **SVG Import** - `import_svg()` parses SVG strings into Penpot shapes
+- **Auto-Context** - `ruler_set_context()` tracks file_id/page_id across calls to reduce repetition
+- **Better Error Messages** - Detailed API errors for easier debugging
+
 ---
 
 ## Architecture
@@ -167,10 +179,14 @@ python -m penpot_mcp.server
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PENPOT_BASE_URL` | `http://penpot-frontend:8080` | Internal Penpot URL |
+| `PENPOT_BACKEND_URL` | - | Direct backend URL (fixes 401 errors) |
 | `PENPOT_PUBLIC_URL` | `http://localhost:9001` | Public URL |
 | `PENPOT_ACCESS_TOKEN` | - | API access token |
+| `PENPOT_EMAIL` | - | Email for credential auth |
+| `PENPOT_PASSWORD` | - | Password for credential auth |
 | `PENPOT_DB_HOST` | `penpot-postgres` | PostgreSQL host |
 | `MCP_PORT` | `8787` | MCP server port |
+| `MCP_LOG_LEVEL` | `info` | Debug logging (debug, info, warning, error) |
 | `RULER_SKILLS_PATH` | `./ruler-skills` | Skills directory |
 
 ### Penpot Setup
@@ -181,6 +197,46 @@ python -m penpot_mcp.server
    ```
 2. Create an access token in Penpot profile settings
 3. Add token to your `.env` file
+
+### Managing Ruler MCP
+
+These commands assume your setup uses both `docker-compose.yaml` (Penpot) and `docker-compose.override.yaml` (Ruler MCP).
+
+#### Quick Commands
+
+| Action | Command |
+|--------|---------|
+| **Rebuild & start** | `docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d --build penpot-mcp` |
+| **Restart (no rebuild)** | `docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml restart penpot-mcp` |
+| **View logs** | `docker logs penpot-mcp` |
+| **Follow logs (live)** | `docker logs -f penpot-mcp` |
+| **Check status** | `docker ps \| grep penpot-mcp` |
+| **Stop completely** | `docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml stop penpot-mcp` |
+
+#### After Pulling Code Updates
+
+```bash
+git pull
+docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d --build penpot-mcp
+```
+
+**Important**: Always use `--build` after pulling code changes. The Python code is baked into the Docker image, so `restart` alone will NOT pick up new changes.
+
+#### Troubleshooting Commands
+
+```bash
+# Check if container is running
+docker ps | grep penpot-mcp
+
+# View recent logs
+docker logs --tail=50 penpot-mcp
+
+# View live logs while reproducing issue
+docker logs -f penpot-mcp
+
+# Restart with fresh logs
+docker restart penpot-mcp && docker logs -f penpot-mcp
+```
 
 ### OpenCode Config Location
 
@@ -293,6 +349,10 @@ opencode
 | Connection refused | Ensure port 8787 is open in firewall |
 | Tools not loading | Check logs: `docker logs penpot-mcp` |
 | Timeout errors | Increase `timeout` in opencode.json (e.g., 60000) |
+| 401 Unauthorized on get-file | Set `PENPOT_BACKEND_URL=http://penpot-backend:6060` in .env |
+| get_share_links SQL error | Update to latest version - SQL fix included |
+| export_frame_png fails 400 | Check penpot-exporter container is running: `docker ps \| grep exporter` |
+| No authentication configured | Set PENPOT_ACCESS_TOKEN in .env or use PENPOT_EMAIL/PASSWORD |
 
 ---
 
@@ -486,6 +546,52 @@ git merge upstream/main
 ```
 
 **Important:** Keep custom code in `src/ruler_ext/` - only merge from upstream's `src/penpot_mcp/`.
+
+---
+
+## FAQ
+
+### Managing Ruler MCP
+
+**Q: How do I restart Ruler after pulling new code?**
+A: Use the `--build` flag to rebuild the Docker image:
+```bash
+docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d --build penpot-mcp
+```
+
+**Q: Why doesn't `restart` work after pulling updates?**
+A: `restart` only restarts the container with existing code. The new Python code needs to be rebuilt into the image with `--build`.
+
+**Q: How do I check if MCP is running?**
+A: `docker ps | grep penpot-mcp`
+
+**Q: How do I see the logs?**
+A: `docker logs penpot-mcp` or `docker logs -f penpot-mcp` for live logs.
+
+### Common Issues
+
+**Q: Getting 401 Unauthorized errors on get-file calls.**
+A: Set `PENPOT_BACKEND_URL=http://penpot-backend:6060` in your .env file and rebuild.
+
+**Q: export_frame_png returns 400 error.**
+A: Check that the penpot-exporter container is running: `docker ps | grep exporter`.
+
+**Q: get_share_links SQL error about deleted_at column.**
+A: Update to the latest version - this was fixed in a recent commit.
+
+### Using Ruler
+
+**Q: How do I create multiple shapes efficiently?**
+A: Use `create_shapes_batch()` - it creates multiple shapes in 1 API call instead of 50+ individual calls.
+
+**Q: Can I use component instances?**
+A: Yes! Use `create_component_instance()` to place existing components on the canvas. Perfect for creating grids of the same component.
+
+**Q: Can I import external SVG files?**
+A: Yes! Use `import_svg()` to parse SVG strings into Penpot shapes.
+
+**Q: How do I avoid passing file_id/page_id to every call?**
+A: Use `ruler_set_context(file_id="...", page_id="...")` once, then omit those params from subsequent calls.
 
 ---
 
