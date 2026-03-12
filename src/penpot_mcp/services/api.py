@@ -56,11 +56,19 @@ class PenpotAPI:
         """Execute an RPC command against Penpot backend."""
         assert self._client is not None, "API client not connected"
         url = f"/api/rpc/command/{method}"
-        if params:
-            resp = await self._client.post(url, json=params)
-        else:
-            resp = await self._client.get(url)
-        resp.raise_for_status()
+        try:
+            if params:
+                resp = await self._client.post(url, json=params)
+            else:
+                resp = await self._client.get(url)
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            error_detail = (
+                e.response.text[:500] if e.response.text else "No response body"
+            )
+            raise Exception(
+                f"API error {e.response.status_code} for {method}: {error_detail}"
+            ) from None
         content_type = resp.headers.get("content-type", "")
         if "application/json" in content_type:
             return resp.json()

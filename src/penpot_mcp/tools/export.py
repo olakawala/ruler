@@ -30,7 +30,9 @@ async def export_frame(
         scale: Scale factor (default 1.0, use 2.0 for retina).
     """
     if export_type not in ("png", "svg", "pdf"):
-        return {"error": f"Unsupported export type: {export_type}. Use png, svg, or pdf."}
+        return {
+            "error": f"Unsupported export type: {export_type}. Use png, svg, or pdf."
+        }
 
     try:
         resp = await api.export_object(
@@ -51,20 +53,31 @@ async def export_frame(
             }
         else:
             # PNG/PDF are binary — base64 encode
-            content_b64 = base64.b64encode(resp).decode("ascii") if isinstance(resp, bytes) else resp
+            content_b64 = (
+                base64.b64encode(resp).decode("ascii")
+                if isinstance(resp, bytes)
+                else resp
+            )
             return {
                 "file_id": file_id,
                 "object_id": object_id,
                 "type": export_type,
                 "content_base64": content_b64,
-                "size_bytes": len(resp) if isinstance(resp, bytes) else len(content_b64),
+                "size_bytes": len(resp)
+                if isinstance(resp, bytes)
+                else len(content_b64),
             }
     except Exception as e:
         logger.warning("Export via Penpot exporter failed: %s", e)
         # Fallback: for SVG, use our local transformer
         if export_type == "svg":
             return await _fallback_svg_export(file_id, page_id, object_id)
-        return {"error": f"Export failed: {e}. The Penpot exporter service may not be available."}
+        error_msg = str(e)
+        if "400" in error_msg:
+            return {
+                "error": "Export failed (400): Penpot exporter service may not be running. Check that penpot-exporter container is running in your Docker stack."
+            }
+        return {"error": f"Export failed: {e}"}
 
 
 async def _fallback_svg_export(file_id: str, page_id: str, object_id: str) -> dict:
