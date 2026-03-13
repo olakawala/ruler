@@ -94,12 +94,16 @@ echo ""
 if [ "$RESUME" = true ]; then
     header "Resuming Ruler (--resume mode)"
     
-    # Load existing .env if present
+    # Read specific variables from .env without using set -a (avoids parsing issues)
     if [ -f .env ]; then
-        set -a
-        source .env
-        set +a
-        verbose "Loaded existing .env"
+        # Extract variables one by one, avoiding command execution issues
+        PENPOT_PUBLIC_URL=$(grep "^PENPOT_PUBLIC_URL=" .env 2>/dev/null | cut -d= -f2-)
+        PENPOT_ACCESS_TOKEN=$(grep "^PENPOT_ACCESS_TOKEN=" .env 2>/dev/null | cut -d= -f2-)
+        PENPOT_EMAIL=$(grep "^PENPOT_EMAIL=" .env 2>/dev/null | cut -d= -f2-)
+        PENPOT_PASSWORD=$(grep "^PENPOT_PASSWORD=" .env 2>/dev/null | cut -d= -f2-)
+        PENPOT_DB_PASS=$(grep "^PENPOT_DB_PASS=" .env 2>/dev/null | cut -d= -f2-)
+        MCP_PORT=$(grep "^MCP_PORT=" .env 2>/dev/null | cut -d= -f2-)
+        verbose "Loaded configuration from .env"
     fi
     
     # Check if docker-compose.yaml exists
@@ -123,7 +127,7 @@ if [ "$RESUME" = true ]; then
         info "Starting MCP server..."
         # Check if override file exists, if not create it
         if [ ! -f docker-compose.override.yaml ]; then
-            cat > docker-compose.override.yaml << 'COMPOSE_EOF'
+            cat > docker-compose.override.yaml << COMPOSE_EOF
 services:
   penpot-mcp:
     build:
