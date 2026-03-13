@@ -112,6 +112,20 @@ if [ "$RESUME" = true ]; then
         exit 1
     fi
     
+    # Setup local storage for cloud instance persistence
+    if [ ! -d "./penpot_data" ]; then
+        mkdir -p ./penpot_data/postgres ./penpot_data/assets
+        info "Created ./penpot_data/ directories for persistent storage"
+    fi
+    
+    # Convert named volumes to local directories if needed
+    if grep -q "penpot_postgres_v15:" docker-compose.yaml 2>/dev/null; then
+        verbose "Converting named volumes to local directories..."
+        sed -i 's|penpot_postgres_v15:|./penpot_data/postgres:/var/lib/postgresql/data|' docker-compose.yaml
+        sed -i 's|penpot_assets:|./penpot_data/assets:/opt/penpot/assets|' docker-compose.yaml
+        info "Converted to local directory storage (./penpot_data/)"
+    fi
+    
     # Check if Penpot is already running
     if docker ps --format '{{.Names}}' | grep -q 'penpot-frontend'; then
         info "Penpot is already running"
@@ -413,6 +427,46 @@ if [ "${SETUP_PENPOT:-false}" = true ]; then
             wget -q https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml
         fi
         info "Using existing docker-compose.yaml"
+    fi
+    
+    # ── Setup local storage for cloud instance persistence ───────
+    # Use host-mounted directories instead of named volumes
+    # This ensures data survives cloud instance sleep/wake cycles
+    
+    # Create local data directories
+    if [ ! -d "./penpot_data" ]; then
+        mkdir -p ./penpot_data/postgres ./penpot_data/assets
+        info "Created ./penpot_data/ directories for persistent storage"
+    fi
+    
+    # Check if docker-compose.yaml already has local mounts or needs conversion
+    if grep -q "penpot_postgres_v15:" docker-compose.yaml 2>/dev/null; then
+        verbose "Converting named volumes to local directories..."
+        
+        # Replace named volume with bind mount for postgres
+        # Current: penpot_postgres_v15: (external named volume)
+        # New: ./penpot_data/postgres:/var/lib/postgresql/data
+        sed -i 's|penpot_postgres_v15:|./penpot_data/postgres:/var/lib/postgresql/data|' docker-compose.yaml
+        
+        # Replace named volume with bind mount for assets
+        # Current: penpot_assets: (external named volume)  
+        # New: ./penpot_data/assets:/opt/penpot/assets
+        sed -i 's|penpot_assets:|./penpot_data/assets:/opt/penpot/assets|' docker-compose.yaml
+        
+        info "Converted to local directory storage (./penpot_data/)"
+    else
+        verbose "Local storage already configured"
+    fi
+    
+    # Remove the volumes: section if it's now empty (both volumes converted)
+    if grep -q "^volumes:$" docker-compose.yaml && grep -q "penpot_postgres_v15:" docker-compose.yaml; then
+        :  # volumes section still has content
+    elif grep -q "^volumes:$" docker-compose.yaml; then
+        # Check if volumes section is empty or only has comments
+        if ! grep -A 5 "^volumes:" docker-compose.yaml | grep -q "^  [a-z]"; then
+            # Remove empty volumes section
+            sed -i '/^volumes:$/,/^[^ ]/{/^$/d;/^volumes:$/d}' docker-compose.yaml
+        fi
     fi
     
     # Modify docker-compose.yaml to use variable substitution for PENPOT_FLAGS
