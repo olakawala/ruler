@@ -112,9 +112,10 @@ ruler_restore_checkpoint(checkpoint_id)
 ### Development
 | Command | Description |
 |---------|-------------|
+| `./setup.sh` | Interactive Docker setup (Penpot + MCP) |
+| `./setup.sh --resume` | Resume after cloud instance wake (no prompts) |
 | `python -m penpot_mcp.server` | Run MCP server locally |
 | `pip install -e .` | Install package in editable mode |
-| `./setup.sh` | Interactive Docker setup (Penpot + MCP) |
 
 ### Docker
 | Command | Description |
