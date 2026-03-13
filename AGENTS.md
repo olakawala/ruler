@@ -223,6 +223,7 @@ Use: `ruler_load_skill("<task>")` to load guidance.
 | MCP container not starting | Run build: `docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d --build penpot-mcp` |
 | Connection refused | Ensure port 8787 is open in firewall |
 | Account data lost after rebuild | Use `docker compose down` WITHOUT `-v` flag - see below |
+| Images missing after cloud sleep | Expected - images are ephemeral. Run `./setup.sh --resume` to recreate containers. Data persists in ./penpot_data/ |
 | Duplicate PENPOT_FLAGS in .env | Edit .env, keep only one PENPOT_FLAGS line |
 
 ## Docker Commands (Data Safety)
@@ -256,6 +257,16 @@ docker compose -p penpot -f docker-compose.yaml down --volumes
 docker volume ls | grep penpot
 # Expected: penpot_penpot_postgres_v15, penpot_penpot_assets
 ```
+
+### Local Storage (for Cloud Instances)
+For cloud platforms with ephemeral storage (like LightningAI), data is stored in `./penpot_data/`:
+```bash
+# Data directory structure
+./penpot_data/postgres   # PostgreSQL database
+./penpot_data/assets     # Uploaded files
+```
+
+This ensures data survives instance sleep/wake cycles.
 
 ## Evolving Insights & Lessons Learned
 
