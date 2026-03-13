@@ -10,6 +10,7 @@ set -euo pipefail
 DEBUG=false
 VERBOSE=false
 SKIP_PENPOT=false
+RESUME=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -23,6 +24,9 @@ while [[ $# -gt 0 ]]; do
         --skip-penpot)
             SKIP_PENPOT=true
             ;;
+        --resume|-r)
+            RESUME=true
+            ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo ""
@@ -30,6 +34,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug         Show all debug output including container logs"
             echo "  --verbose, -v   Show curl commands, docker output"
             echo "  --skip-penpot   Skip Penpot setup (use existing Penpot)"
+            echo "  --resume, -r   Resume after cloud instance wake (no prompts)"
             echo "  --help, -h      Show this help message"
             exit 0
             ;;
@@ -83,6 +88,94 @@ if [ "$VERBOSE" = true ]; then
     echo -e "${MAGENTA}[VERBOSE MODE ENABLED]${RESET}"
 fi
 echo ""
+
+# ── Resume Mode: Quick start after cloud instance wake ────────
+
+if [ "$RESUME" = true ]; then
+    header "Resuming Ruler (--resume mode)"
+    
+    # Load existing .env if present
+    if [ -f .env ]; then
+        set -a
+        source .env
+        set +a
+        verbose "Loaded existing .env"
+    fi
+    
+    # Check if docker-compose.yaml exists
+    if [ ! -f docker-compose.yaml ]; then
+        err "No docker-compose.yaml found. Run setup.sh without --resume first."
+        exit 1
+    fi
+    
+    # Check if Penpot is already running
+    if docker ps --format '{{.Names}}' | grep -q 'penpot-frontend'; then
+        info "Penpot is already running"
+    else
+        info "Starting Penpot..."
+        docker compose -p penpot -f docker-compose.yaml up -d
+    fi
+    
+    # Check if MCP is already running
+    if docker ps --format '{{.Names}}' | grep -q 'penpot-mcp'; then
+        info "MCP server is already running"
+    else
+        info "Starting MCP server..."
+        # Check if override file exists, if not create it
+        if [ ! -f docker-compose.override.yaml ]; then
+            cat > docker-compose.override.yaml << 'COMPOSE_EOF'
+services:
+  penpot-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: penpot-mcp
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8787:8787"
+      - "127.0.0.1:4402:4402"
+    depends_on:
+      penpot-postgres:
+        condition: service_healthy
+      penpot-backend:
+        condition: service_started
+    networks:
+      - penpot
+    environment:
+      PENPOT_BASE_URL: "http://penpot-frontend:8080"
+      PENPOT_PUBLIC_URL: "${PENPOT_PUBLIC_URL:-http://localhost:9001}"
+      PENPOT_ACCESS_TOKEN: "${PENPOT_ACCESS_TOKEN:-}"
+      PENPOT_EMAIL: "${PENPOT_EMAIL:-}"
+      PENPOT_PASSWORD: "${PENPOT_PASSWORD:-}"
+      PENPOT_DB_HOST: "penpot-postgres"
+      PENPOT_DB_PORT: "5432"
+      PENPOT_DB_NAME: "penpot"
+      PENPOT_DB_USER: "penpot"
+      PENPOT_DB_PASS: "${PENPOT_DB_PASS:-penpot}"
+      MCP_HOST: "0.0.0.0"
+      MCP_PORT: "8787"
+      MCP_LOG_LEVEL: "info"
+      WS_HOST: "0.0.0.0"
+      WS_PORT: "4402"
+      PLUGIN_WS_URL: "ws://localhost:4402"
+COMPOSE_EOF
+            verbose "Created docker-compose.override.yaml"
+        fi
+        
+        docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d
+    fi
+    
+    # Wait briefly and report status
+    sleep 3
+    
+    header "Resume complete"
+    echo ""
+    echo "  • Penpot:      http://localhost:9001"
+    echo "  • MCP Server:  http://localhost:8787/mcp"
+    echo ""
+    info "Done!"
+    exit 0
+fi
 
 # ── Helper: Check if Penpot is ready ─────────────────────────
 
