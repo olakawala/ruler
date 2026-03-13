@@ -119,10 +119,12 @@ ruler_restore_checkpoint(checkpoint_id)
 ### Docker
 | Command | Description |
 |---------|-------------|
+| `docker compose -p penpot -f docker-compose.yaml up -d` | Start Penpot (preserves data) |
 | `docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d --build penpot-mcp` | Build & start MCP |
 | `docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml restart penpot-mcp` | Restart MCP |
-| `docker logs penpot-mcp` | View logs |
-| `docker logs -f penpot-mcp` | Follow logs live |
+| `docker compose -p penpot -f docker-compose.yaml down` | Stop containers (preserves data) |
+| `docker logs penpot-mcp` | View MCP logs |
+| `docker logs -f penpot-mcp` | Follow MCP logs live |
 
 ### Code Quality
 | Command | Description |
@@ -217,8 +219,10 @@ Use: `ruler_load_skill("<task>")` to load guidance.
 | 401 Unauthorized on get-file | Set `PENPOT_BACKEND_URL=http://penpot-backend:6060` in .env |
 | export_frame_png fails 400 | Check penpot-exporter container is running |
 | MCP not found | Check MCP server: `docker ps | grep penpot-mcp` |
+| MCP container not starting | Run build: `docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d --build penpot-mcp` |
 | Connection refused | Ensure port 8787 is open in firewall |
 | Account data lost after rebuild | Use `docker compose down` WITHOUT `-v` flag - see below |
+| Duplicate PENPOT_FLAGS in .env | Edit .env, keep only one PENPOT_FLAGS line |
 
 ## Docker Commands (Data Safety)
 
