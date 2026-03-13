@@ -218,6 +218,39 @@ Use: `ruler_load_skill("<task>")` to load guidance.
 | export_frame_png fails 400 | Check penpot-exporter container is running |
 | MCP not found | Check MCP server: `docker ps | grep penpot-mcp` |
 | Connection refused | Ensure port 8787 is open in firewall |
+| Account data lost after rebuild | Use `docker compose down` WITHOUT `-v` flag - see below |
+
+## Docker Commands (Data Safety)
+
+### Safe Commands (Preserve Data)
+```bash
+# Start containers
+docker compose -p penpot -f docker-compose.yaml up -d
+
+# Restart containers
+docker compose -p penpot -f docker-compose.yaml restart
+
+# Rebuild MCP only
+docker compose -p penpot -f docker-compose.yaml -f docker-compose.override.yaml up -d --build penpot-mcp
+
+# Stop containers (preserves volumes)
+docker compose -p penpot -f docker-compose.yaml down
+```
+
+### Unsafe Commands (Delete ALL Data)
+```bash
+# ❌ WRONG - Deletes PostgreSQL database volume (ALL USER DATA)
+docker compose -p penpot -f docker-compose.yaml down -v
+
+# ❌ WRONG - Also deletes volumes
+docker compose -p penpot -f docker-compose.yaml down --volumes
+```
+
+### Verify Volumes Exist
+```bash
+docker volume ls | grep penpot
+# Expected: penpot_penpot_postgres_v15, penpot_penpot_assets
+```
 
 ## Evolving Insights & Lessons Learned
 
